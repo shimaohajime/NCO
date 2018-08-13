@@ -4,6 +4,10 @@ Created on Wed Jun 27 15:03:28 2018
 
 @author: Hajime
 """
+import matplotlib
+# Force matplotlib to not use any Xwindows backend.
+matplotlib.use('Agg')
+
 import tensorflow as tf
 import numpy as np
 from scipy.stats import norm
@@ -47,7 +51,7 @@ class Agent(object):
         #self.action_weights = np.empty([indim,1])
         
         init_out_weights = np.zeros([indim, self.fanout])
-        init_out_weights[0:dunbar, :]= np.random.randn(self.dunbar,self.fanout)
+        init_out_weights[0:self.dunbar, :]= np.random.randn(self.dunbar,self.fanout)
         init_out_weights = tf.constant(init_out_weights)
         self.out_weights = tf.get_variable(dtype=tf.float64, name=str(self.num) + "msg" +str(self.id), initializer=init_out_weights) #, shape=[indim, self.fanout]
         self.action_weights = tf.get_variable(dtype=tf.float64, name=str(self.num) + "action" +str(self.id), shape=[indim,1])
@@ -374,6 +378,7 @@ if __name__=="__main__":
         color.append('r')
         hpos=hpos + i    
     nx.draw(orgA_result.G, with_labels=True, font_weight='bold',pos=position,node_color=color)
+    plt.savefig("plot1.png")
 
     #nx.draw_kamada_kawai(orgA_result.G, with_labels=True, font_weight='bold')
     
@@ -389,6 +394,7 @@ if __name__=="__main__":
     #line.set_data(np.arange(len(y)), np.log(y))
     #fig.canvas.draw()
     ax.plot(np.arange(len(orgA.training_res)), orgA.training_res,".")
+    plt.savefig("plot2.png")
     
     end_time = time.time()
     time_elapsed = end_time-start_time
