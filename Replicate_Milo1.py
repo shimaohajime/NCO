@@ -361,7 +361,7 @@ if __name__=="__main__":
         "description" : "Baseline"}
     )
     
-    iterations=1000
+    iterations=100000
     orgA = Organization(optimizer="None",**parameters[0])
     orgA.train(iterations, iplot=False, verbose=False)
     
