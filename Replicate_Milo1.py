@@ -19,6 +19,8 @@ import time
 import os
 import networkx as nx
 import re
+import pickle
+
 
 def sigmoid(x,w):
   return  1/(1+np.exp(-np.dot(x,w)))
@@ -400,4 +402,8 @@ if __name__=="__main__":
     time_elapsed = end_time-start_time
     print('time: ',time_elapsed)
     
+    filename = "orgA"
+    pickle.dump(orgA.training_res, open(filename + "_res.pickle", "wb"))
+    pickle.dump(orgA_result.G, open(filename + "_G.pickle", "wb"))
+
 
