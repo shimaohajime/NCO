@@ -70,7 +70,7 @@ class Agent(object):
 
 class Organization(object):
     def __init__(self, num_environment, num_agents, num_managers, innoise,
-                     outnoise, fanout, statesdim, envnoise, envobsnoise,
+                     outnoise, fanout, statedim, envnoise, envobsnoise,
                      batchsize, optimizer, weight_on_cost=0. ,dunbar=2 ,dunbar_type='soft',randomSeed=False, tensorboard=None, **kwargs):
         
         self.num_environment = num_environment
