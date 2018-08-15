@@ -25,6 +25,22 @@ import pickle
 def sigmoid(x,w):
   return  1/(1+np.exp(-np.dot(x,w)))
 
+def tf_print(tensor, transform=None):
+
+    # Insert a custom python operation into the graph that does nothing but print a tensors value 
+    def print_tensor(x):
+        # x is typically a numpy array here so you could do anything you want with it,
+        # but adding a transformation of some kind usually makes the output more digestible
+        print(x if transform is None else transform(x))
+        return x
+    log_op = tf.py_func(print_tensor, [tensor], [tensor.dtype])[0]
+    with tf.control_dependencies([log_op]):
+        res = tf.identity(tensor)
+
+    # Return the given tensor
+    return res
+
+
 class Agent(object):
     _ids = count(0)
     def __init__(self, noiseinstd, noiseoutstd, num, fanout, statedim, batchsize, numagents, numenv,dunbar , **kwargs):
@@ -72,7 +88,11 @@ class Organization(object):
     def __init__(self, num_environment, num_agents, num_managers, innoise,
                      outnoise, fanout, statedim, envnoise, envobsnoise,
                      batchsize, optimizer, weight_on_cost=0. ,dunbar=2 ,dunbar_type='soft',randomSeed=False, tensorboard=None, **kwargs):
-        
+        #For Debug
+        self.task_loss_list = []
+        self.cost_loss_list = []
+        self.total_loss_list = []
+
         self.num_environment = num_environment
         self.num_agents = num_agents
         self.num_managers = num_managers
@@ -88,19 +108,25 @@ class Organization(object):
         greater = tf.greater(self.environment, zero)
         self.environment = tf.where(greater, tf.ones_like(self.environment), tf.zeros_like(self.environment))        
         
-        self.weight_on_cost = tf.convert_to_tensor(weight_on_cost, dtype=tf.float64) #the weight on the listening cost on loss function 
+        #self.weight_on_cost = tf.convert_to_tensor(weight_on_cost, dtype=tf.float64) #the weight on the listening cost on loss function 
+        self.weight_on_cost = tf.constant(weight_on_cost, dtype=tf.float64) #the weight on the listening cost on loss function 
         self.dunbar = dunbar #Dunbar number
         self.dunbar_type = dunbar_type
         
         self.build_org()
         self.objective = self.loss()
+        
+        self.objective_task = self.loss_task()
+        self.objective_cost = self.loss_cost()
+        
         self.learning_rate = tf.placeholder(tf.float64)
 
 
-        #self.optimize =tf.train.AdadeltaOptimizer(self.learning_rate, rho=.9).minimize(self.objective)
-        self.optimize =tf.train.AdamOptimizer(self.learning_rate).minimize(self.objective)
+        self.optimize =tf.train.AdadeltaOptimizer(self.learning_rate, rho=.9).minimize(self.objective)
+        #self.optimize =tf.train.AdamOptimizer(self.learning_rate).minimize(self.objective)
         self.start_learning_rate = .01#15.
         self.decay = None#.001
+
 
         self.sess = tf.Session()
         if( tensorboard == None ):
@@ -108,8 +134,13 @@ class Organization(object):
         else:
             self.writer = tf.summary.FileWriter(tensorboard, self.sess.graph)
         self.saver = tf.train.Saver()
+        
+        
+        
+        
         init = tf.global_variables_initializer()
         self.sess.run(init)
+        
 
         
     def build_org(self):
@@ -147,7 +178,7 @@ class Organization(object):
             a.set_action(action)
             self.outputs.append(output)
             self.actions.append(action)
-
+    '''
     def loss(self):    
         punishments = []
         sum_wrong_action = tf.Variable(0.0, dtype=tf.float64)
@@ -160,23 +191,47 @@ class Organization(object):
         for a in self.agents[self.num_managers:]:
             #wrong_action =  np.sum(a.action!=pattern)
             wrong_action = tf.reduce_mean(  tf.abs(a.action-pattern) )
-            sum_wrong_action += wrong_action
-            
+            sum_wrong_action += wrong_action            
             #tf.cond(tf.less(wrong_action,tf.constant(0., dtype=tf.float64)),lambda:tf.Print(wrong_action,[wrong_action],'Negative loss from task'),lambda:tf.Print(wrong_action,[wrong_action],''))
-                
-        
         if self.dunbar_type=='soft':
             sum_listening_cost = self.dunbar_listening_cost()
         if self.dunbar_type=='hard':
             sum_listening_cost = self.dunbar_listening_cost_hard()
         #tf.cond(tf.less(sum_listening_cost,tf.constant(0., dtype=tf.float64)),lambda:tf.Print(sum_listening_cost,[sum_listening_cost],'Negative loss from cost'),lambda:tf.Print(sum_listening_cost,[sum_listening_cost],''))
-            
-            
-        loss = sum_wrong_action*(one-self.weight_on_cost) + sum_listening_cost*self.weight_on_cost
-        
+                        
+        loss = sum_wrong_action*(one-self.weight_on_cost) + sum_listening_cost*self.weight_on_cost        
         #print_loss = tf.Print(loss,[sum_wrong_action,sum_listening_cost,loss],"task,cost,total loss")
-        
+                
         return loss
+    '''
+    def loss(self):
+        one = tf.constant(1.0, dtype=tf.float64)
+        sum_wrong_action = self.loss_task()
+        sum_listening_cost = self.loss_cost()
+        #loss_total = sum_wrong_action*(one-self.weight_on_cost) + sum_listening_cost*self.weight_on_cost
+        loss_total = sum_wrong_action + sum_listening_cost
+        return loss_total        
+        
+    def loss_task(self):
+        sum_wrong_action = tf.Variable(0.0, dtype=tf.float64)
+        pattern = self.pattern_detected()
+        zero = tf.convert_to_tensor(0.0, dtype=tf.float64)
+        one = tf.convert_to_tensor(1.0, dtype=tf.float64)
+        for a in self.agents[self.num_managers:]:
+            #wrong_action =  np.sum(a.action!=pattern)
+            wrong_action = tf.reduce_mean(  tf.abs(a.action-pattern) )
+            sum_wrong_action += wrong_action
+        return sum_wrong_action
+
+    def loss_cost(self):
+        sum_listening_cost = tf.Variable(0.0, dtype=tf.float64)
+        if self.dunbar_type=='soft':
+            sum_listening_cost = self.dunbar_listening_cost()
+        if self.dunbar_type=='hard':
+            sum_listening_cost = self.dunbar_listening_cost_hard()
+        return sum_listening_cost
+            
+
     
     def agent_punishment(self,pattern,action):
         neg = tf.convert_to_tensor(-1.0, dtype=tf.float64)
@@ -209,7 +264,6 @@ class Organization(object):
         lmod = tf.mod(leftsum, 2)
         rmod = tf.mod(rightsum, 2)
         pattern = tf.cast(tf.equal(lmod, rmod), tf.float64)
-        
         return pattern
     
     
@@ -275,6 +329,7 @@ class Organization(object):
 
             
         training_res = []
+        self.pattern_debug = self.sess.run(self.pattern_detected())
         # For each iteration
         for i  in range(niters):
             # Run training, and adjust learning rate if it's an Optimizer that
@@ -282,15 +337,46 @@ class Organization(object):
             lr = float(lrinit)
             if( self.decay != None ):
                 lr = float(lrinit) / (1 + i*self.decay) # Learn less over time
-            self.sess.run(self.optimize, feed_dict={self.learning_rate:lr})
+            _,u0,u_t0,u_c0 = self.sess.run([self.optimize,self.objective,self.objective_task,self.objective_cost], feed_dict={self.learning_rate:lr})
+            #u0,u_t0,u_c0 = self.sess.run([self.objective,self.objective_task,self.objective_cost], feed_dict={self.learning_rate:lr})
             # Evaluates our current progress towards objective
-            u = self.sess.run(self.objective)
-            if verbose:
-                if i%200==0:
-                    print  (str(i)+": Loss function=" + str(u) )
+            #u = self.sess.run(self.objective)
+            #u2,u_t2,u_c2 = self.sess.run([self.objective,self.objective_task,self.objective_cost])
+            one = tf.convert_to_tensor(1.0, dtype=tf.float64)
+            weight_c = self.sess.run(self.weight_on_cost)
+            weight_t = self.sess.run(one-self.weight_on_cost)
+            #loss_actual0 = weight_t*u_t0 + weight_c*u_c0
+            loss_actual0 = u_t0 + u_c0
+            #loss_actual2 = weight_t*u_t2 + weight_c*u_c2
+
+            '''
+            u_t = self.sess.run(self.objective_task)
+            self.task_loss_list.append(u_t)
+            u_c = self.sess.run(self.objective_cost)
+            self.cost_loss_list.append(u_c)
+            self.total_loss_list.append(u)
             training_res.append(u)
-
-
+            loss_actual = weight_t*u_t + weight_c*u_c
+            
+            '''
+            #if verbose:
+            '''
+            if i%100==0:
+                #print  ("iter"+str(i)+": Loss function=" + str(u) )
+                
+                print('----')
+                #print("task loss:"+str(u_t)+',cost loss:'+str(u_c) ) 
+                #print ('weight on task'+str(weight_t)+',weight on cost:'+str(weight_c))
+                #print('Actual Loss function:'+str(loss_actual))
+                print  ("iter"+str(i)+": Loss function0=" + str(u0) )
+                print("task loss2:"+str(u_t0)+',cost loss2:'+str(u_c0) ) 
+                print('Actual Loss function2:'+str(loss_actual0))
+                print('----')
+                
+                #print  ("iter"+str(i)+": Loss function0=" + str(u0) )
+                print('---------------')
+            '''
+                
         if iplot:
             #line.set_data(np.arange(len(training_res)), np.log(training_res))
             #fig.canvas.draw()
@@ -364,7 +450,7 @@ if __name__=="__main__":
         "statedim" : 1, # Dimension of Agent State
         "envnoise": 25, # Stddev of environment state (NO LONGER USED)
         "envobsnoise" : 1, # Stddev on observing environment
-        "batchsize" : 200,#1000, # Training Batch Size
+        "batchsize" : 1000,#200,#, # Training Batch Size
         "weight_on_cost":.99,
         "description" : "Baseline"}
     )
@@ -411,6 +497,8 @@ if __name__=="__main__":
     print('time: ',time_elapsed)
     
     filename = "orgA"
+    
+    pickle.dump(orgA.out_params, open(filename + "_out_params.pickle", "wb"))
     pickle.dump(orgA.training_res, open(filename + "_res.pickle", "wb"))
     pickle.dump(orgA_result.G, open(filename + "_G.pickle", "wb"))
 
