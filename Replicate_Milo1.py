@@ -70,7 +70,7 @@ class Agent(object):
 
 class Organization(object):
     def __init__(self, num_environment, num_agents, num_managers, innoise,
-                     outnoise, fanout, statedim, envnoise, envobsnoise,
+                     outnoise, fanout, statesdim, envnoise, envobsnoise,
                      batchsize, optimizer, weight_on_cost=0. ,dunbar=2 ,dunbar_type='soft',randomSeed=False, tensorboard=None, **kwargs):
         
         self.num_environment = num_environment
@@ -88,7 +88,7 @@ class Organization(object):
         greater = tf.greater(self.environment, zero)
         self.environment = tf.where(greater, tf.ones_like(self.environment), tf.zeros_like(self.environment))        
         
-        self.weight_on_cost = weight_on_cost #the weight on the listening cost on loss function 
+        self.weight_on_cost = tf.convert_to_tensor(weight_on_cost, dtype=tf.float64) #the weight on the listening cost on loss function 
         self.dunbar = dunbar #Dunbar number
         self.dunbar_type = dunbar_type
         
@@ -161,13 +161,21 @@ class Organization(object):
             #wrong_action =  np.sum(a.action!=pattern)
             wrong_action = tf.reduce_mean(  tf.abs(a.action-pattern) )
             sum_wrong_action += wrong_action
+            
+            #tf.cond(tf.less(wrong_action,tf.constant(0., dtype=tf.float64)),lambda:tf.Print(wrong_action,[wrong_action],'Negative loss from task'),lambda:tf.Print(wrong_action,[wrong_action],''))
+                
         
         if self.dunbar_type=='soft':
             sum_listening_cost = self.dunbar_listening_cost()
         if self.dunbar_type=='hard':
             sum_listening_cost = self.dunbar_listening_cost_hard()
+        #tf.cond(tf.less(sum_listening_cost,tf.constant(0., dtype=tf.float64)),lambda:tf.Print(sum_listening_cost,[sum_listening_cost],'Negative loss from cost'),lambda:tf.Print(sum_listening_cost,[sum_listening_cost],''))
             
-        loss = sum_wrong_action*(1.-self.weight_on_cost) + sum_listening_cost*self.weight_on_cost
+            
+        loss = sum_wrong_action*(one-self.weight_on_cost) + sum_listening_cost*self.weight_on_cost
+        
+        #print_loss = tf.Print(loss,[sum_wrong_action,sum_listening_cost,loss],"task,cost,total loss")
+        
         return loss
     
     def agent_punishment(self,pattern,action):
@@ -201,7 +209,7 @@ class Organization(object):
         lmod = tf.mod(leftsum, 2)
         rmod = tf.mod(rightsum, 2)
         pattern = tf.cast(tf.equal(lmod, rmod), tf.float64)
-
+        
         return pattern
     
     
@@ -226,7 +234,7 @@ class Organization(object):
             cost = tf.divide(tf.sigmoid(bottom), tf.sigmoid(top)) # At Wolpert's suggestion
             penalties += [cost]
         penalty = tf.stack(penalties)
-        return tf.multiply(tf.sigmoid(tf.reduce_sum(penalty)), ten)
+        return tf.sigmoid(tf.reduce_sum(penalty))
 
 
     #Hard constraint. If the listening is more than dunbar number, add a big loss.
