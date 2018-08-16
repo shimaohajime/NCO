@@ -110,15 +110,17 @@ class Organization(object):
         self.environment = tf.where(greater, tf.ones_like(self.environment), tf.zeros_like(self.environment))        
         
         #self.weight_on_cost = tf.convert_to_tensor(weight_on_cost, dtype=tf.float64) #the weight on the listening cost on loss function 
-        self.weight_on_cost = tf.constant(weight_on_cost, dtype=tf.float64) #the weight on the listening cost on loss function 
+        # self.weight_on_cost = tf.constant(weight_on_cost, dtype=tf.float64) #the weight on the listening cost on loss function 
+        self.weight_on_cost = weight_on_cost #the weight on the listening cost on loss function 
         self.dunbar = dunbar #Dunbar number
         self.dunbar_type = dunbar_type
         
         self.build_org()
-        self.objective = self.loss()
         
-        self.objective_task = self.loss_task()
-        self.objective_cost = self.loss_cost()
+        self.objective_task = self._make_loss_task()
+        self.objective_cost = self._make_loss_cost()
+        # self.objective = self.loss()
+        self.objective = self.weight_on_cost * self.objective_cost + (1-self.weight_on_cost) * self.objective_task
         
         self.learning_rate = tf.placeholder(tf.float64)
 
@@ -205,26 +207,27 @@ class Organization(object):
                 
         return loss
     '''
-    def loss(self):
-        one = tf.constant(1.0, dtype=tf.float64)
-        sum_wrong_action = self.loss_task()
-        sum_listening_cost = self.loss_cost()
-        loss_total = sum_wrong_action*(one-self.weight_on_cost) + sum_listening_cost*self.weight_on_cost
-        #loss_total = sum_wrong_action + sum_listening_cost
-        return loss_total        
+    # def loss(self):
+    #     one = 1.0 # tf.constant(1.0, dtype=tf.float64)
+    #     sum_wrong_action = self.loss_task()
+    #     return sum_wrong_action
+    #     sum_listening_cost = self.loss_cost()
+    #     loss_total = sum_wrong_action*(one-self.weight_on_cost) + sum_listening_cost*self.weight_on_cost
+    #     #loss_total = sum_wrong_action + sum_listening_cost
+    #     return loss_total        
         
-    def loss_task(self):
+    def _make_loss_task(self):
         sum_wrong_action = tf.Variable(0.0, dtype=tf.float64)
         pattern = self.pattern_detected()
-        zero = tf.convert_to_tensor(0.0, dtype=tf.float64)
-        one = tf.convert_to_tensor(1.0, dtype=tf.float64)
+        zero = 0.0 # # tf.convert_to_tensor(0.0, dtype=tf.float64)
+        one = 1.0 # tf.convert_to_tensor(1.0, dtype=tf.float64)
         for a in self.agents[self.num_managers:]:
             #wrong_action =  np.sum(a.action!=pattern)
             wrong_action = tf.reduce_mean(  tf.abs(a.action-pattern) )
             sum_wrong_action += wrong_action
         return sum_wrong_action
 
-    def loss_cost(self):
+    def _make_loss_cost(self):
         sum_listening_cost = tf.Variable(0.0, dtype=tf.float64)
         if self.dunbar_type=='soft':
             sum_listening_cost = self.dunbar_listening_cost()
@@ -345,8 +348,8 @@ class Organization(object):
             #u = self.sess.run(self.objective)
             #u2,u_t2,u_c2 = self.sess.run([self.objective,self.objective_task,self.objective_cost])
             one = tf.convert_to_tensor(1.0, dtype=tf.float64)
-            weight_c = self.sess.run(self.weight_on_cost)
-            weight_t = self.sess.run(one-self.weight_on_cost)
+            weight_c = self.weight_on_cost # self.sess.run(self.weight_on_cost)
+            weight_t = 1.0 - self.weight_on_cost # self.sess.run(1.0-self.weight_on_cost)
             loss_actual0 = weight_t*u_t0 + weight_c*u_c0
             #loss_actual0 = u_t0 + u_c0
             #loss_actual2 = weight_t*u_t2 + weight_c*u_c2
@@ -363,7 +366,7 @@ class Organization(object):
             '''
             #if verbose:
             
-            if i%1==0:
+            if i%10==0:
                 #print  ("iter"+str(i)+": Loss function=" + str(u) )
                 
                 print('----')
@@ -457,7 +460,7 @@ if __name__=="__main__":
         "description" : "Baseline"}
     )
     
-    iterations=300
+    iterations=10000
     orgA = Organization(optimizer="None",**parameters[0])
     orgA.train(iterations, iplot=False, verbose=False)
     
