@@ -66,14 +66,20 @@ class Agent(object):
     # messages based on their observations. This is currently nonsensical
     # in the nonlinear model.
     def create_out_matrix(self, indim):
-        #self.out_weights = np.empty([indim, self.fanout])
-        #self.action_weights = np.empty([indim,1])
+        #Initialize without any condition
+        self.out_weights = np.empty([indim, self.fanout])
+        self.action_weights = np.empty([indim,1])
         
+        #Initialize with only Dunbar weights to be nonzero:
+        '''
         init_out_weights = np.zeros([indim, self.fanout])
         init_out_weights[0:self.dunbar, :]= np.random.randn(self.dunbar,self.fanout)
         init_out_weights = tf.constant(init_out_weights)
         self.out_weights = tf.get_variable(dtype=tf.float64, name=str(self.num) + "msg" +str(self.id), initializer=init_out_weights) #, shape=[indim, self.fanout]
         self.action_weights = tf.get_variable(dtype=tf.float64, name=str(self.num) + "action" +str(self.id), shape=[indim,1])
+        '''
+        
+        
         #with tf.Session() as sess:
             #init = tf.global_variables_initializer()
             #sess.run(init)
@@ -128,7 +134,7 @@ class Organization(object):
         self.optimize =tf.train.AdadeltaOptimizer(self.learning_rate, rho=.9).minimize(self.objective)
         #self.optimize =tf.train.AdamOptimizer(self.learning_rate).minimize(self.objective)
         self.start_learning_rate = .01#15.
-        self.decay = None#.001
+        self.decay = .001 #None
 
 
         self.sess = tf.Session()
@@ -364,24 +370,22 @@ class Organization(object):
             loss_actual = weight_t*u_t + weight_c*u_c
             
             '''
-            #if verbose:
-            
-            if i%10==0:
-                #print  ("iter"+str(i)+": Loss function=" + str(u) )
-                
-                print('----')
-                #print("task loss:"+str(u_t)+',cost loss:'+str(u_c) ) 
-                #print ('weight on task'+str(weight_t)+',weight on cost:'+str(weight_c))
-                #print('Actual Loss function:'+str(loss_actual))
-                print  ("iter"+str(i)+": Loss function0=" + str(u0) )
-                print("task loss2:"+str(u_t0)+',cost loss2:'+str(u_c0) ) 
-                print('Actual Loss function2:'+str(loss_actual0))
-                print('----')
-                
-                #print  ("iter"+str(i)+": Loss function0=" + str(u0) )
-                print('---------------')
-            
-                
+            if verbose:
+                if i%10==0:
+                    #print  ("iter"+str(i)+": Loss function=" + str(u) )
+                    
+                    print('----')
+                    #print("task loss:"+str(u_t)+',cost loss:'+str(u_c) ) 
+                    #print ('weight on task'+str(weight_t)+',weight on cost:'+str(weight_c))
+                    #print('Actual Loss function:'+str(loss_actual))
+                    print  ("iter"+str(i)+": Loss function0=" + str(u0) )
+                    print("task loss2:"+str(u_t0)+',cost loss2:'+str(u_c0) ) 
+                    print('Actual Loss function2:'+str(loss_actual0))
+                    print('----')
+                    
+                    #print  ("iter"+str(i)+": Loss function0=" + str(u0) )
+                    print('---------------')
+                            
         if iplot:
             #line.set_data(np.arange(len(training_res)), np.log(training_res))
             #fig.canvas.draw()
@@ -460,14 +464,14 @@ if __name__=="__main__":
         "description" : "Baseline"}
     )
     
-    iterations=10000
+    iterations=100000
     orgA = Organization(optimizer="None",**parameters[0])
     orgA.train(iterations, iplot=False, verbose=False)
     
     orgA_result = Results(training_res=orgA.training_res, listen_params=orgA.out_params, welfare=orgA.welfare, cost=None,binary_cutoff=.001)
     orgA_result.generate_graph()
     
-
+    #-------------------
     position={}
     color = []    
     for i in range(parameters[0]['num_environment']):
@@ -489,7 +493,7 @@ if __name__=="__main__":
     ax.plot([1],[1])
     ax.set_xlim(0,iterations)
     ax.set_ylim(0,np.max(orgA.training_res))
-    ax.set_ylabel("Welfare")
+    ax.set_ylabel("Loss")
     ax.set_xlabel("Training Epoch")
     #ax.plot(np.arange(len(y)), np.log(y),".")
     #line.set_data(np.arange(len(y)), np.log(y))
