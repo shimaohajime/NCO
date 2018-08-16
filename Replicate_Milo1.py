@@ -20,6 +20,7 @@ import os
 import networkx as nx
 import re
 import pickle
+import multiprocessing
 
 
 def sigmoid(x,w):
@@ -208,8 +209,8 @@ class Organization(object):
         one = tf.constant(1.0, dtype=tf.float64)
         sum_wrong_action = self.loss_task()
         sum_listening_cost = self.loss_cost()
-        #loss_total = sum_wrong_action*(one-self.weight_on_cost) + sum_listening_cost*self.weight_on_cost
-        loss_total = sum_wrong_action + sum_listening_cost
+        loss_total = sum_wrong_action*(one-self.weight_on_cost) + sum_listening_cost*self.weight_on_cost
+        #loss_total = sum_wrong_action + sum_listening_cost
         return loss_total        
         
     def loss_task(self):
@@ -339,14 +340,15 @@ class Organization(object):
                 lr = float(lrinit) / (1 + i*self.decay) # Learn less over time
             _,u0,u_t0,u_c0 = self.sess.run([self.optimize,self.objective,self.objective_task,self.objective_cost], feed_dict={self.learning_rate:lr})
             #u0,u_t0,u_c0 = self.sess.run([self.objective,self.objective_task,self.objective_cost], feed_dict={self.learning_rate:lr})
+            #u0,u_t0,u_c0 = self.sess.run([self.objective,self.objective_task,self.objective_cost], feed_dict={self.learning_rate:lr})
             # Evaluates our current progress towards objective
             #u = self.sess.run(self.objective)
             #u2,u_t2,u_c2 = self.sess.run([self.objective,self.objective_task,self.objective_cost])
             one = tf.convert_to_tensor(1.0, dtype=tf.float64)
             weight_c = self.sess.run(self.weight_on_cost)
             weight_t = self.sess.run(one-self.weight_on_cost)
-            #loss_actual0 = weight_t*u_t0 + weight_c*u_c0
-            loss_actual0 = u_t0 + u_c0
+            loss_actual0 = weight_t*u_t0 + weight_c*u_c0
+            #loss_actual0 = u_t0 + u_c0
             #loss_actual2 = weight_t*u_t2 + weight_c*u_c2
 
             '''
@@ -360,8 +362,8 @@ class Organization(object):
             
             '''
             #if verbose:
-            '''
-            if i%100==0:
+            
+            if i%1==0:
                 #print  ("iter"+str(i)+": Loss function=" + str(u) )
                 
                 print('----')
@@ -375,7 +377,7 @@ class Organization(object):
                 
                 #print  ("iter"+str(i)+": Loss function0=" + str(u0) )
                 print('---------------')
-            '''
+            
                 
         if iplot:
             #line.set_data(np.arange(len(training_res)), np.log(training_res))
@@ -455,7 +457,7 @@ if __name__=="__main__":
         "description" : "Baseline"}
     )
     
-    iterations=100000
+    iterations=300
     orgA = Organization(optimizer="None",**parameters[0])
     orgA.train(iterations, iplot=False, verbose=False)
     
