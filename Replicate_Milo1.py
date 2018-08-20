@@ -353,20 +353,20 @@ class Organization(object):
             # Evaluates our current progress towards objective
             #u = self.sess.run(self.objective)
             #u2,u_t2,u_c2 = self.sess.run([self.objective,self.objective_task,self.objective_cost])
-            one = tf.convert_to_tensor(1.0, dtype=tf.float64)
+            #one = tf.convert_to_tensor(1.0, dtype=tf.float64)
             weight_c = self.weight_on_cost # self.sess.run(self.weight_on_cost)
             weight_t = 1.0 - self.weight_on_cost # self.sess.run(1.0-self.weight_on_cost)
             loss_actual0 = weight_t*u_t0 + weight_c*u_c0
             #loss_actual0 = u_t0 + u_c0
             #loss_actual2 = weight_t*u_t2 + weight_c*u_c2
 
+            training_res.append(u0)
             '''
             u_t = self.sess.run(self.objective_task)
             self.task_loss_list.append(u_t)
             u_c = self.sess.run(self.objective_cost)
             self.cost_loss_list.append(u_c)
             self.total_loss_list.append(u)
-            training_res.append(u)
             loss_actual = weight_t*u_t + weight_c*u_c
             
             '''
@@ -393,7 +393,10 @@ class Organization(object):
 
 
         # Get the strategy from all agents, which is the "network configuration" at the end
-        out_params = self.sess.run([a.out_weights for a in self.agents])
+        #out_params = self.sess.run([a.out_weights for a in self.agents])
+        out_params=[]
+        for a in self.agents:            
+            out_params.append(a.out_weights)
         welfare = self.sess.run(self.objective)
         if( self.writer != None ):
             self.writer.close()
@@ -457,16 +460,16 @@ if __name__=="__main__":
         "num_managers" : 5, # Number of Agents that do not contribute
         "fanout" : 1, # Distinct messages an agent can say
         "statedim" : 1, # Dimension of Agent State
-        "envnoise": 25, # Stddev of environment state (NO LONGER USED)
+        "envnoise": 1, # Stddev of environment state (NO LONGER USED)
         "envobsnoise" : 1, # Stddev on observing environment
         "batchsize" : 1000,#200,#, # Training Batch Size
-        "weight_on_cost":.99,
+        "weight_on_cost":0.0,
         "description" : "Baseline"}
     )
     
-    iterations=100000
+    iterations=10000
     orgA = Organization(optimizer="None",**parameters[0])
-    orgA.train(iterations, iplot=False, verbose=False)
+    orgA.train(iterations, iplot=False, verbose=True)
     
     orgA_result = Results(training_res=orgA.training_res, listen_params=orgA.out_params, welfare=orgA.welfare, cost=None,binary_cutoff=.001)
     orgA_result.generate_graph()
