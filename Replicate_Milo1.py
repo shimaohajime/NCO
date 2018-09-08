@@ -44,10 +44,10 @@ def tf_print(tensor, transform=None):
 
 class Agent(object):
     _ids = count(0)
-    def __init__(self, noiseinstd, noiseoutstd, num, fanout, statedim, batchsize, numagents, numenv,dunbar , **kwargs):
+    def __init__(self, noiseinstd, noiseoutstd, num, fanout,  batchsize, numagents, numenv,dunbar , **kwargs):#statedim,
         self.id = next(self._ids)
         self.num = num
-        self.statedim = statedim
+        #self.statedim = statedim
         self.fanout = fanout
         self.noiseinstd = noiseinstd
         self.noiseoutstd = noiseoutstd
@@ -69,9 +69,11 @@ class Agent(object):
         #Initialize without any condition
         #self.out_weights = np.empty([indim, self.fanout])
         #self.action_weights = np.empty([indim,1])
+
+        #Initizalize to start from zero.
         with tf.name_scope("Agents_Params"):
-            self.out_weights = tf.get_variable(dtype=tf.float64, name=str(self.num) + "msg" +str(self.id), shape=[indim, self.fanout])
-            self.action_weights = tf.get_variable(dtype=tf.float64, name=str(self.num) + "act" +str(self.id), shape=[indim, 1])
+            self.out_weights = tf.get_variable(dtype=tf.float64, name=str(self.num) + "msg" +str(self.id), initializer=tf.constant(0.0,shape=[indim,self.fanout],dtype=tf.float64))
+            self.action_weights = tf.get_variable(dtype=tf.float64, name=str(self.num) + "act" +str(self.id), initializer=tf.constant(0.0,shape=[indim,1],dtype=tf.float64))
             tf.summary.tensor_summary("Agent_out_weights",self.out_weights)
             tf.summary.tensor_summary("Agent_action_weights",self.action_weights)
 
@@ -85,24 +87,24 @@ class Agent(object):
         self.action_weights = tf.get_variable(dtype=tf.float64, name=str(self.num) + "action" +str(self.id), shape=[indim,1])
         '''
 
-
-        #with tf.Session() as sess:
-            #init = tf.global_variables_initializer()
-            #sess.run(init)
-            #print "Agent %d Created with out_weights: %s" % (self.num, str(sess.run(self.out_weights)))
-
     def set_output(self,output):
         with tf.name_scope("Agents_Output"):
             self.output = output
     def set_action(self,action):
         with tf.name_scope("Agents_Action"):
             self.action = action
+    def set_state_action(self,state_action):
+        with tf.name_scope("Agents_State"):
+            self.state_action = state_action
+    def set_biasedin(self,biasedin):
+        with tf.name_scope("Agents_Biasedin"):
+            self.biasedin = biasedin
 
 
 class Organization(object):
     def __init__(self, num_environment, num_agents, num_managers, innoise,
-                     outnoise, fanout, statedim, envnoise, envobsnoise,
-                     batchsize, optimizer, weight_on_cost=0. ,dunbar=2 ,dunbar_type='soft',randomSeed=False, tensorboard_filename=None, **kwargs):
+                     outnoise, fanout,  envnoise, envobsnoise,#statedim,
+                     batchsize, optimizer, weight_on_cost=0. ,dunbar=2 ,dunbar_type='soft',dunbar_function='linear_kth' ,randomSeed=False, tensorboard_filename=None, **kwargs):
 
         self.sess = tf.Session()
 
@@ -118,7 +120,7 @@ class Organization(object):
         self.envobsnoise = envobsnoise
         self.agents = []
         for i in range(num_agents):
-            self.agents.append(Agent(innoise, outnoise, i, fanout, statedim, batchsize, num_agents, num_environment,dunbar))
+            self.agents.append(Agent(innoise, outnoise, i, fanout, batchsize, num_agents, num_environment,dunbar)) #, statedim
         #self.environment = np.random.randn(batchsize, num_environment)
         #self.environment = (self.environment>0.).astype(int) #Discretize the environments to (0,1)
         with tf.name_scope("Environment"):
@@ -132,6 +134,7 @@ class Organization(object):
         self.weight_on_cost = weight_on_cost #the weight on the listening cost on loss function
         self.dunbar = dunbar #Dunbar number
         self.dunbar_type = dunbar_type
+        self.dunbar_function = dunbar_function
 
         self.build_org()
 
@@ -165,11 +168,8 @@ class Organization(object):
         self.sess.run(init)
 
         ###Check dimensions for # DEBUG:
-        self.dim_environment = self.sess.run(tf.shape(self.environment))
+        #self.dim_environment = self.sess.run(tf.shape(self.environment))
         ## DEBUG:
-
-
-
 
 
     def build_org(self):
@@ -185,14 +185,20 @@ class Organization(object):
             indim = indim+a.fanout
 
     def build_wave(self):
+        #Debug
         self.outputs = []
         self.actions = []
+        self.greaters = []
+        self.action_conts = []
 
+        '''
         self.dim_build_wave_biasedin=[]
         self.dim_build_wave_greater= []
         self.dim_build_wave_greater =[]
         self.dim_build_wave_action_cont=[]
         self.dim_build_wave_action=[]
+        '''
+
         for i,a in enumerate(self.agents):
             #envnoize = np.random.randn(self.batchsize, self.num_environment)*self.envobsnoise
             with tf.name_scope("Env_Noise"):
@@ -208,26 +214,42 @@ class Organization(object):
                 biasedin = tf.concat([tf.constant(1.0, dtype=tf.float64, shape=[self.batchsize, 1]), indata], 1)
             a.set_received_messages(biasedin)
 
-            self.dim_build_wave_biasedin.append( self.sess.run(tf.shape(biasedin)) )
+            #self.dim_build_wave_biasedin.append( self.sess.run(tf.shape(biasedin)) )
 
             with tf.name_scope("Output"):
                 output = tf.sigmoid(tf.matmul(biasedin, a.out_weights))
                 self.dim_build_wave_output = self.sess.run(tf.shape(output))
             with tf.name_scope("Action"):
                 action_cont = tf.sigmoid(tf.matmul(biasedin, a.action_weights)) #
-                action_cont_print = tf.Print(action_cont,[action_cont],"action_cont:")
-                zero = tf.convert_to_tensor(0.0, tf.float64)
+                #zero = tf.convert_to_tensor(0.0, tf.float64)
+                zero = tf.zeros_like(action_cont,dtype=tf.float64)
                 greater = tf.greater(action_cont, zero)
                 #action = tf.where(greater, tf.ones_like(action_cont), tf.zeros_like(action_cont))
-                action = tf.where(greater, tf.ones_like(action_cont_print), tf.zeros_like(action_cont_print))
-
-
+                #action = tf.where(greater, tf.ones_like(action_cont), tf.zeros_like(action_cont))
+                action = tf.round(action_cont)
+                
+                #For convergence, we do not calculate the loss from the action.
+                #Instead we use continuous loss function from sigmoid
+                
+                state_action = tf.matmul(biasedin, a.action_weights)
+                
+                '''
                 self.dim_build_wave_greater.append( self.sess.run(tf.shape(greater)) )
                 self.dim_build_wave_action_cont.append (self.sess.run(tf.shape(action_cont)) )
                 self.dim_build_wave_action.append( self.sess.run(tf.shape(action)) )
+                '''
+            a.set_output(output)
             a.set_action(action)
+            a.set_state_action(state_action)
+            a.set_biasedin(biasedin)
+            
+            #Debug            
             self.outputs.append(output)
             self.actions.append(action)
+            self.greaters.append(greater)
+            self.action_conts.append(action_cont)
+            
+            
 
     '''
     def loss(self):
@@ -265,28 +287,30 @@ class Organization(object):
     #     return loss_total
 
     def _make_loss_task(self):
-        sum_wrong_action = tf.Variable(0.0, dtype=tf.float64)
+        #sum_wrong_action = tf.Variable(0.0, dtype=tf.float64) #can't set those as variable
         pattern = self.pattern_detected()
-        zero = 0.0 # # tf.convert_to_tensor(0.0, dtype=tf.float64)
-        one = 1.0 # tf.convert_to_tensor(1.0, dtype=tf.float64)
-
+        '''
         self.dim_makelosstask_pattern = self.sess.run( tf.shape(pattern) )
         self.dim_makelosstask_a_action = []
         self.dim_makelosstask_diff_abs = []
         self.dim_makelosstask_diff = []
         self.dim_makelosstask_wrong_action = []
-
-        wrong_action_list = []
-
+        '''
+        cross_entropy_list = []
         for a in self.agents[self.num_managers:]:
+            a_loss = tf.nn.sigmoid_cross_entropy_with_logits(labels=pattern,logits=a.state_action)
+            cross_entropy_list.append(a_loss)
+            
             #wrong_action =  np.sum(a.action!=pattern)
+            '''
             action_pattern_diff = a.action-pattern
             action_pattern_diff_abs = tf.abs(action_pattern_diff)
             wrong_action = tf.reduce_mean( action_pattern_diff_abs  )
             #sum_wrong_action = sum_wrong_action + wrong_action
 
             wrong_action_list.append(wrong_action)
-
+            '''
+            '''
             self.dtype_makelosstask_a_action = a.action.dtype
             self.dtype_makelosstask_pattern =  pattern.dtype
             self.dtype_makelosstask_action_pattern_diff =action_pattern_diff.dtype
@@ -297,15 +321,19 @@ class Organization(object):
             self.dim_makelosstask_diff.append(self.sess.run(tf.shape(action_pattern_diff)))
             self.dim_makelosstask_diff_abs.append(self.sess.run(tf.shape(action_pattern_diff_abs)))
             self.dim_makelosstask_wrong_action.append(self.sess.run(tf.shape(wrong_action)))
-
+            '''
+        '''
         sum_wrong_action = tf.add_n(wrong_action_list)
 
         self.wrong_action_list = wrong_action_list
-
+        
         return sum_wrong_action
+        '''
+        cross_entropy_mean = tf.reduce_mean(cross_entropy_list)
+        return cross_entropy_mean
 
     def _make_loss_cost(self):
-        sum_listening_cost = tf.Variable(0.0, dtype=tf.float64)
+        #sum_listening_cost = tf.Variable(0.0, dtype=tf.float64) #can't set as variable!
         if self.dunbar_type=='soft':
             sum_listening_cost = self.dunbar_listening_cost()
         if self.dunbar_type=='hard':
@@ -338,7 +366,7 @@ class Organization(object):
         #lmod = np.mod(leftsum,2)
         #rmod = np.mod(rightsum,2)
         #pattern = (lmod==rmod).astype(int)
-
+        
         left = tf.slice(self.environment, [0, 0], [self.batchsize, midpoint])
         right = tf.slice(self.environment, [0, midpoint], [self.batchsize, self.num_environment - midpoint])
         leftsum = tf.reshape( tf.reduce_sum(left, 1), shape=[self.batchsize,1] )
@@ -346,7 +374,11 @@ class Organization(object):
         lmod = tf.mod(leftsum, 2)
         rmod = tf.mod(rightsum, 2)
         pattern = tf.cast(tf.equal(lmod, rmod), tf.float64)
+        
+        #test with easiest task
+        #pattern = tf.constant(1., dtype=tf.float64,shape=[self.batchsize,1])
 
+        '''
         self.dim_pattern_detected_left =  self.sess.run(tf.shape(left))
         self.dim_pattern_detected_right =  self.sess.run(tf.shape(right))
         self.dim_pattern_detected_leftsum =  self.sess.run(tf.shape(leftsum))
@@ -354,7 +386,7 @@ class Organization(object):
         self.dim_pattern_detected_lmod =  self.sess.run(tf.shape(lmod))
         self.dim_pattern_detected_rmod =  self.sess.run(tf.shape(rmod))
         self.dim_pattern_detected_pattern =  self.sess.run(tf.shape(pattern))
-
+        '''
 
         return pattern
 
@@ -366,22 +398,36 @@ class Organization(object):
     # is an incentive the make the (dunbar+1)th largest value very small.
     def dunbar_listening_cost(self):
         penalties = []
-        ten = tf.convert_to_tensor(10.0, dtype=tf.float64)
-        five = tf.convert_to_tensor(5.0, dtype=tf.float64)
-        print("Dunbar: " + str(self.dunbar))
+        print("Dunbar Number: " + str(self.dunbar))
+        print('Dunbar Function:'+self.dunbar_function)
         for x in self.agents:
-            weights = tf.abs(x.out_weights[1:]) #bias doesn't count
-            top_k = tf.transpose(tf.nn.top_k(tf.transpose(weights), self.dunbar+1).values)
+            weights_msg = tf.abs(x.out_weights[1:]) #bias doesn't count
+            weights_action = tf.abs(x.action_weights[1:])
+            weights = weights_msg + weights_action
+            top_k = tf.transpose(tf.nn.top_k(tf.transpose(weights), k=self.dunbar+1,sorted=True).values)
             top = top_k[0]
-            #top = tf.Print(top, [top], message="Top: ")
             bottom = top_k[self.dunbar]
-            #bottom = tf.Print(bottom, [bottom], message="Bottom: ")
-            #cost = tf.divide(bottom, top)
-            cost = tf.divide(tf.sigmoid(bottom), tf.sigmoid(top)) # At Wolpert's suggestion
-            #penalties += [cost]
+            
+            if self.dunbar_function is "sigmoid_ratio":
+                cost = tf.sigmoid( tf.divide(bottom, top) ) - .5# -.5 so that the min is zero.
+                
+            elif self.dunbar_function is "sigmoid_kth":
+                cost = tf.sigmoid( bottom ) - .5
+                
+            elif self.dunbar_function is "linear_ratio":
+                cost =  tf.divide(bottom, top) # At Wolpert's suggestion
+
+            elif self.dunbar_function is "linear_kth":
+                cost =  bottom
+                
+            else:
+                print("Dunbar cost function type not specified")
+                return
+                
             penalties.append( [cost] )
         penalty = tf.stack(penalties)
-        return tf.sigmoid(tf.reduce_sum(penalty))
+        #return tf.sigmoid(tf.reduce_sum(penalty))
+        return tf.reduce_sum(penalty)
 
 
     #Hard constraint. If the listening is more than dunbar number, add a big loss.
@@ -443,7 +489,6 @@ class Organization(object):
             #loss_actual0 = u_t0 + u_c0
             #loss_actual2 = weight_t*u_t2 + weight_c*u_c2
 
-            training_res.append(u0)
             '''
             u_t = self.sess.run(self.objective_task)
             self.task_loss_list.append(u_t)
@@ -453,8 +498,9 @@ class Organization(object):
             loss_actual = weight_t*u_t + weight_c*u_c
 
             '''
-            if verbose:
-                if i%10==0:
+            if i%100==0:
+                training_res.append(u0)
+                if verbose:
                     #print  ("iter"+str(i)+": Loss function=" + str(u) )
 
                     print('----')
@@ -483,6 +529,7 @@ class Organization(object):
             out_params.append( self.sess.run( a.out_weights ) )
             action_params.append( self.sess.run(a.action_weights) )
         welfare = self.sess.run(self.objective)
+        
         if( self.writer != None ):
             self.writer.close()
 
@@ -490,6 +537,7 @@ class Organization(object):
         self.action_params_final = action_params
         self.training_res_final = training_res
         self.welfare_final = welfare
+                
         return
 
 
@@ -540,31 +588,36 @@ if __name__=="__main__":
     parameters = []
     # Trivial network: 1 agent, no managers, 5 env nodes
     parameters.append(
-        {"innoise" : 2, # Stddev on incomming messages
-        "outnoise" : 2, # Stddev on outgoing messages
+        {"innoise" : 1., # Stddev on incomming messages
+        "outnoise" : 1., # Stddev on outgoing messages
         "num_environment" : 6, # Num univariate environment nodes
         "num_agents" : 10, # Number of Agents
         "num_managers" : 5, # Number of Agents that do not contribute
         "fanout" : 1, # Distinct messages an agent can say
-        "statedim" : 1, # Dimension of Agent State
-        "envnoise": 1, # Stddev of environment state (NO LONGER USED)
+        #"statedim" : 1, # Dimension of Agent State
+        "envnoise": 1, # Stddev of environment state
         "envobsnoise" : 1, # Stddev on observing environment
         "batchsize" : 1000,#200,#, # Training Batch Size
-        "weight_on_cost":0.0,
+        "weight_on_cost":0.,
+        "dunbar":3,
+        "dunbar_function":"sigmoid_kth",
         "description" : "Baseline"}
     )
 
-    iterations=50000
+    iterations=20000
     orgA = Organization(optimizer="None", tensorboard_filename='board_log',**parameters[0])
     orgA.train(iterations, iplot=False, verbose=True)
-    
-    
+
+
     filename = "orgA"
-    pickle.dump(orgA.train_res_final, open(filename+"_train_res_final.pickle","wb"))
+    pickle.dump(parameters[0], open(filename+"_parameters.pickle","wb"))
+    pickle.dump(orgA.training_res_final, open(filename+"_training_res_final.pickle","wb"))
+    pickle.dump(orgA.out_params_final, open(filename+"_out_params_final.pickle","wb"))
+    pickle.dump(orgA.action_params_final, open(filename+"_action_params_final.pickle","wb"))
 
-    pickle.dump(orgA.out_params_final, open(filename+"_train_res_final.pickle","wb"))
-    pickle.dump(orgA.action_params_final, open(filename+"_train_res_final.pickle","wb"))
-
+    end_time = time.time()
+    time_elapsed = end_time-start_time
+    print('time: ',time_elapsed)
     '''
     print('****************')
     print('Dimensions')
