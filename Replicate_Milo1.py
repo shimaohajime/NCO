@@ -270,7 +270,12 @@ class Organization(object):
             print('Weight on cost:'+str(self.weight_on_cost))
         for x in self.agents:
             weights_msg = tf.abs(x.out_weights[1:]) #bias doesn't count
-            weights_action = tf.abs(x.action_weights[1:])
+            if x.id<self.num_managers:
+                weights_action = 0
+            else:
+                weights_action = tf.abs(x.action_weights[1:])
+            
+            
             weights = weights_msg + weights_action
             top_k = tf.transpose(tf.nn.top_k(tf.transpose(weights), k=self.dunbar_number+1,sorted=True).values)
             top = top_k[0]
@@ -419,6 +424,8 @@ def runIteration(parameter,iter_train,iter_restart,filename):
         pickle.dump(orgA.training_res_final, open(filename+"_training_res_final.pickle","wb"))
         pickle.dump(orgA.out_params_final, open(filename+"_out_params_final.pickle","wb"))
         pickle.dump(orgA.action_params_final, open(filename+"_action_params_final.pickle","wb"))
+        
+        del orgA
 
 
 
@@ -428,7 +435,7 @@ if __name__=="__main__":
     parameters = [
         {"innoise" : [1.], # Stddev on incomming messages
         "outnoise" : [1.], # Stddev on outgoing messages
-        "num_environment" : [6], # Num univariate environment nodes
+        "num_environment" : [6,10], # Num univariate environment nodes
         "num_agents" : [10], # Number of Agents
         "num_managers" : ["AllButOne"], # Number of Agents that do not contribute
         "fanout" : [1], # Distinct messages an agent can say
@@ -447,7 +454,7 @@ if __name__=="__main__":
     
     n_param = len(parameters)
     
-    iteration_train = 100000
+    iteration_train = 500
     iteration_restart = 2
     
     
