@@ -21,6 +21,7 @@ import networkx as nx
 import re
 import pickle
 import multiprocessing
+from sklearn.model_selection import ParameterGrid
 
 
 def sigmoid(x,w):
@@ -44,7 +45,7 @@ def tf_print(tensor, transform=None):
 
 class Agent(object):
     _ids = count(0)
-    def __init__(self, noiseinstd, noiseoutstd, num, fanout,  batchsize, numagents, numenv,dunbar ,initializer_type , **kwargs):#statedim,
+    def __init__(self, noiseinstd, noiseoutstd, num, fanout,  batchsize, numagents, numenv,dunbar_number ,initializer_type , **kwargs):#statedim,
         self.id = next(self._ids)
         self.num = num
         #self.statedim = statedim
@@ -55,7 +56,7 @@ class Agent(object):
         self.numagents = numagents
         self.numenv = numenv
         self.received_messages = None
-        self.dunbar = dunbar
+        self.dunbar_number = dunbar_number
         self.initializer_type = initializer_type
 
     def set_received_messages(self, msgs):
@@ -112,7 +113,7 @@ class Agent(object):
 class Organization(object):
     def __init__(self, num_environment, num_agents, num_managers, innoise,
                      outnoise, fanout,  envnoise, envobsnoise,#statedim,
-                     batchsize, optimizer, weight_on_cost=0.,initializer_type='zeros' ,dunbar=2 ,dunbar_function='linear_kth' ,randomSeed=False, tensorboard_filename=None, **kwargs):
+                     batchsize, optimizer, weight_on_cost=0.,weight_update=False,initializer_type='zeros' ,dunbar_number=2 ,dunbar_function='linear_kth' ,randomSeed=False, tensorboard_filename=None, **kwargs):
 
         self.sess = tf.Session()
 
@@ -128,15 +129,20 @@ class Organization(object):
         self.envobsnoise = envobsnoise
         self.agents = []
         for i in range(num_agents):
-            self.agents.append(Agent(innoise, outnoise, i, fanout, batchsize, num_agents, num_environment,dunbar,initializer_type=initializer_type)) #, statedim
+            self.agents.append(Agent(innoise, outnoise, i, fanout, batchsize, num_agents, num_environment,dunbar_number,initializer_type=initializer_type)) #, statedim
         with tf.name_scope("Environment"):
             self.environment = tf.random_normal([self.batchsize, num_environment], mean=0.0, stddev=1.0, dtype=tf.float64)
             zero = tf.convert_to_tensor(0.0, tf.float64)
             greater = tf.greater(self.environment, zero, name="Organization_greater")
             self.environment = tf.where(greater, tf.ones_like(self.environment), tf.zeros_like(self.environment), name="where_env")
-
-        self.weight_on_cost = weight_on_cost #the weight on the listening cost on loss function
-        self.dunbar = dunbar #Dunbar number
+        if weight_update is False:
+            self.weight_on_cost = weight_on_cost #the weight on the listening cost on loss function
+        elif weight_update is True:
+            self.weight_on_cost = tf.get_variable(name="weight_on_cost",dtype=tf.float64,initializer=tf.constant(weight_on_cost,dtype=tf.float64),trainable=False  )
+            self.weight_on_cost_val = weight_on_cost
+            self.assign_weight = tf.assign(self.weight_on_cost, self.weight_on_cost_val)
+        self.weight_update = weight_update
+        self.dunbar_number = dunbar_number #Dunbar number
         self.dunbar_function = dunbar_function
 
         self.build_org()
@@ -253,15 +259,19 @@ class Organization(object):
     # is an incentive the make the (dunbar+1)th largest value very small.
     def dunbar_listening_cost(self, cost_violate=1000., cutoff=.01):
         penalties = []
-        print("Dunbar Number: " + str(self.dunbar))
+        print("Dunbar Number: " + str(self.dunbar_number))
         print('Dunbar Function:'+self.dunbar_function)
+        if self.weight_update is True:
+            print('Weight on cost:update')
+        else:
+            print('Weight on cost:'+str(self.weight_on_cost))
         for x in self.agents:
             weights_msg = tf.abs(x.out_weights[1:]) #bias doesn't count
             weights_action = tf.abs(x.action_weights[1:])
             weights = weights_msg + weights_action
-            top_k = tf.transpose(tf.nn.top_k(tf.transpose(weights), k=self.dunbar+1,sorted=True).values)
+            top_k = tf.transpose(tf.nn.top_k(tf.transpose(weights), k=self.dunbar_number+1,sorted=True).values)
             top = top_k[0]
-            bottom = top_k[self.dunbar]
+            bottom = top_k[self.dunbar_number]
             
             top = tf.cond(tf.reshape(tf.equal(top,0.0),[]),lambda:top+.00001,lambda:top  )
             
@@ -314,17 +324,27 @@ class Organization(object):
             lr = float(lrinit)
             if( self.decay != None ):
                 lr = float(lrinit) / (1 + i*self.decay) # Learn less over time
-            _,u0,u_t0,u_c0 = self.sess.run([self.optimize,self.objective,self.objective_task,self.objective_cost], feed_dict={self.learning_rate:lr})
-            weight_c = self.weight_on_cost # self.sess.run(self.weight_on_cost)
-            weight_t = 1.0 - self.weight_on_cost # self.sess.run(1.0-self.weight_on_cost)
-            loss_actual0 = weight_t*u_t0 + weight_c*u_c0
+            if self.weight_update is True:
+                _,u0,u_t0,u_c0,w = self.sess.run([self.optimize,self.objective,self.objective_task,self.objective_cost,self.weight_on_cost], feed_dict={self.learning_rate:lr})
+            else:
+                _,u0,u_t0,u_c0 = self.sess.run([self.optimize,self.objective,self.objective_task,self.objective_cost], feed_dict={self.learning_rate:lr})
+                
+            #weight_c = self.weight_on_cost # self.sess.run(self.weight_on_cost)
+            #weight_t = 1.0 - self.weight_on_cost # self.sess.run(1.0-self.weight_on_cost)
+            #loss_actual0 = weight_t*u_t0 + weight_c*u_c0
             if i%100==0:
                 training_res.append(u0)
+                if (i>niters/4) and (self.weight_update is True) and (self.weight_on_cost_val < .8):
+                    self.weight_on_cost_val = self.weight_on_cost_val+.01
+                    self.weight_on_cost.load(self.weight_on_cost_val,self.sess)
+                    #_=self.sess.run(self.assign_weight)
                 if verbose:
                     print('----')
-                    print  ("iter"+str(i)+": Loss function0=" + str(u0) )
-                    print("task loss2:"+str(u_t0)+',cost loss2:'+str(u_c0) )
-                    print('Actual Loss function2:'+str(loss_actual0))
+                    print  ("iter"+str(i)+": Loss function=" + str(u0) )
+                    print("task loss:"+str(u_t0)+',cost loss:'+str(u_c0) )
+                    if self.weight_update is True:
+                        print("weight on cost:"+str(w))
+                    #print('Actual Loss function2:'+str(loss_actual0))
                     print('----')
 
 
@@ -390,6 +410,8 @@ class Results(object):
 
 if __name__=="__main__":
     start_time = time.time()
+    
+    
 
     tf.reset_default_graph()
     tf.summary.FileWriterCache.clear()
@@ -406,14 +428,15 @@ if __name__=="__main__":
         "envnoise": 1, # Stddev of environment state
         "envobsnoise" : 1, # Stddev on observing environment
         "batchsize" : 1000,#200,#, # Training Batch Size
-        "weight_on_cost":0.5,
-        "dunbar":3,
+        "weight_on_cost":0.0,
+        "weight_update":True,
+        "dunbar_number":3,
         "dunbar_function":"quad_ratio",
         "initializer_type":"normal",
         "description" : "Baseline"}
     )
 
-    iterations=50000
+    iterations=1000
     orgA = Organization(optimizer="None", tensorboard_filename='board_log',**parameters[0])
     orgA.train(iterations, iplot=False, verbose=True)
 
