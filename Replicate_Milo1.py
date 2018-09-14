@@ -425,16 +425,11 @@ def runIteration(parameter,iter_train,iter_restart,filename):
 if __name__=="__main__":
     start_time = time.time()
     
-    
-
-    tf.reset_default_graph()
-    tf.summary.FileWriterCache.clear()
-
     parameters = [
         {"innoise" : [1.], # Stddev on incomming messages
         "outnoise" : [1.], # Stddev on outgoing messages
-        "num_environment" : [6,10], # Num univariate environment nodes
-        "num_agents" : [10,20], # Number of Agents
+        "num_environment" : [6], # Num univariate environment nodes
+        "num_agents" : [10], # Number of Agents
         "num_managers" : ["AllButOne"], # Number of Agents that do not contribute
         "fanout" : [1], # Distinct messages an agent can say
         "envnoise": [1], # Stddev of environment state
@@ -442,7 +437,7 @@ if __name__=="__main__":
         "batchsize" : [1000],#200,#, # Training Batch Size
         "weight_on_cost":[0.0],
         "weight_update":[True],
-        "dunbar_number":[2,3,5],
+        "dunbar_number":[2],
         "dunbar_function":["quad_ratio"],
         "initializer_type":["normal"],
         "description" : ["Baseline"]}
@@ -452,11 +447,13 @@ if __name__=="__main__":
     
     n_param = len(parameters)
     
-    iteration_train = 1000
+    iteration_train = 100000
     iteration_restart = 2
     
     
     for i in range(n_param):
+        tf.reset_default_graph()
+        tf.summary.FileWriterCache.clear()
         print('********************'+'Setting'+str(i)+'********************')
         filename = 'Setting'+str(i)
         p = parameters[i]
