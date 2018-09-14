@@ -124,7 +124,10 @@ class Organization(object):
 
         self.num_environment = num_environment
         self.num_agents = num_agents
-        self.num_managers = num_managers
+        if num_managers is "AllButOne":
+            self.num_managers = num_agents-1
+        else:
+            self.num_managers = num_managers
         self.batchsize = batchsize
         self.envobsnoise = envobsnoise
         self.agents = []
@@ -406,6 +409,17 @@ class Results(object):
         self.nomnodes=numnodes
 
 
+def runIteration(parameter,iter_train,iter_restart,filename):
+    for i in range(iter_restart):
+        filename = filename + '_trial' + str(i)
+        orgA = Organization(optimizer="None", tensorboard_filename='board_log_'+filename,**parameter)
+        orgA.train(iter_train, iplot=False, verbose=True)
+    
+        pickle.dump(parameter, open(filename+"_parameters.pickle","wb"))
+        pickle.dump(orgA.training_res_final, open(filename+"_training_res_final.pickle","wb"))
+        pickle.dump(orgA.out_params_final, open(filename+"_out_params_final.pickle","wb"))
+        pickle.dump(orgA.action_params_final, open(filename+"_action_params_final.pickle","wb"))
+
 
 
 if __name__=="__main__":
@@ -415,8 +429,50 @@ if __name__=="__main__":
 
     tf.reset_default_graph()
     tf.summary.FileWriterCache.clear()
-    parameters = []
-    # Trivial network: 1 agent, no managers, 5 env nodes
+
+    parameters = [
+        {"innoise" : [1.], # Stddev on incomming messages
+        "outnoise" : [1.], # Stddev on outgoing messages
+        "num_environment" : [6,10], # Num univariate environment nodes
+        "num_agents" : [10,20], # Number of Agents
+        "num_managers" : ["AllButOne"], # Number of Agents that do not contribute
+        "fanout" : [1], # Distinct messages an agent can say
+        "envnoise": [1], # Stddev of environment state
+        "envobsnoise" : [1], # Stddev on observing environment
+        "batchsize" : [1000],#200,#, # Training Batch Size
+        "weight_on_cost":[0.0],
+        "weight_update":[True],
+        "dunbar_number":[2,3,5],
+        "dunbar_function":["quad_ratio"],
+        "initializer_type":["normal"],
+        "description" : ["Baseline"]}
+    ]
+    
+    parameters = list(ParameterGrid(parameters))
+    
+    n_param = len(parameters)
+    
+    iteration_train = 1000
+    iteration_restart = 2
+    
+    
+    for i in range(n_param):
+        print('********************'+'Setting'+str(i)+'********************')
+        filename = 'Setting'+str(i)
+        p = parameters[i]
+        runIteration(p, iteration_train, iteration_restart,filename)
+        
+        # NOTE: We run all simulations on background processes.
+        # This is because Tensorflow does not release its memory after we
+        # finish running a network, so if we run many simulations in one process
+        # we'll swell to using 200GB of memory. This way memory is forcibly
+        # freed by process termination after each simulation.
+        proc = multiprocessing.Process(target=runIteration, args=(p, iteration_train, iteration_restart,filename,))
+        proc.start()
+        proc.join()
+
+
+    '''
     parameters.append(
         {"innoise" : 1., # Stddev on incomming messages
         "outnoise" : 1., # Stddev on outgoing messages
@@ -435,7 +491,7 @@ if __name__=="__main__":
         "initializer_type":"normal",
         "description" : "Baseline"}
     )
-
+    
     iterations=1000
     orgA = Organization(optimizer="None", tensorboard_filename='board_log',**parameters[0])
     orgA.train(iterations, iplot=False, verbose=True)
@@ -446,6 +502,9 @@ if __name__=="__main__":
     pickle.dump(orgA.training_res_final, open(filename+"_training_res_final.pickle","wb"))
     pickle.dump(orgA.out_params_final, open(filename+"_out_params_final.pickle","wb"))
     pickle.dump(orgA.action_params_final, open(filename+"_action_params_final.pickle","wb"))
+
+    '''
+
 
     end_time = time.time()
     time_elapsed = end_time-start_time
