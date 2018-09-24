@@ -145,7 +145,7 @@ class Organization(object):
                      batchsize, optimizer,env_input,env_pattern_input=None,
                      dropout_rate = 0.0,dropout_type='AllIn',
                      weight_on_cost=0.,weight_update=False,initializer_type='zeros' ,dunbar_number=2 ,dunbar_function='linear_kth' ,
-                     randomSeed=False, tensorboard_filename=None, **kwargs):
+                     randomSeed=False, decay=None, tensorboard_filename=None, **kwargs):
 
         self.sess = tf.Session()
 
@@ -207,7 +207,7 @@ class Organization(object):
             #self.optimize =tf.train.AdadeltaOptimizer(self.learning_rate, rho=.9).minimize(self.objective)
             self.optimize =tf.train.AdamOptimizer(self.learning_rate).minimize(self.objective)
             self.start_learning_rate = .1#15.
-            self.decay = None #.01
+            self.decay = decay #None #.01
 
 
         if( tensorboard_filename == None ):
@@ -250,18 +250,23 @@ class Organization(object):
                     
                 if self.dropout_type is 'AllIn':
                     indata = tf.nn.dropout(indata, keep_prob = 1.-self.dropout_rate)
-                elif self.dropout_type is 'OnlyeDunbar':
+                elif self.dropout_type is 'OnlyDunbar':
                     weights = a.out_weights[1:] + a.action_weights[1:]
-                    indata_dim = indata.get_shape()[0] #dimension before adding bias
+                    indata_dim = indata.get_shape()[1].value #dimension before adding bias
+                    self.indata_dim=indata_dim
+                    #print('indata_dim'+str(indata_dim))
                     top_k = tf.transpose(tf.nn.top_k(tf.transpose(weights), k=self.dunbar_number+1,sorted=True).values)
                     top = top_k[0]
                     bottom = top_k[self.dunbar_number]
+                    #print('bottom_dim'+str(bottom.get_shape() ))
                     one_above_bottom = top_k[self.dunbar_number-1]                    
                     #Under construction from here
                     r = tf.random_uniform(shape=[self.batchsize,indata_dim])
                     zeros = tf.constant(0.0,shape=[self.batchsize,indata_dim], dtype=tf.float64)
-                    bottom_mat = tf.reshape( tf.tile(bottom, self.batchsize*indata_dim  ), [self.batchsize,indata_dim]  )
-                    weights_mat =  tf.reshape( tf.tile( tf.reshape(weights,[-1]), self.batchsize), [self.batchsize,indata_dim] )
+                    bottom_tile = tf.tile([bottom[0]], [self.batchsize*indata_dim]  )
+                    bottom_mat = tf.reshape(bottom_tile , [self.batchsize,indata_dim]  )
+                    weights_tile = tf.tile( tf.reshape(weights,[-1]), [self.batchsize])
+                    weights_mat =  tf.reshape( weights_tile, [self.batchsize,indata_dim] )
                     
                     indata = tf.where( tf.logical_and(tf.less_equal(weights_mat, bottom_mat), tf.less(r, self.dropout_rate)  ),  zeros, indata  )
                     
@@ -401,6 +406,8 @@ class Organization(object):
         training_res_seq = []
         task_loss_seq = []
         task_loss_hd_seq = []
+        weight_on_cost_seq = []
+        lr_seq = []
         # For each iteration
         for i  in range(niters):
             # Run training, and adjust learning rate if it's an Optimizer that
@@ -418,6 +425,7 @@ class Organization(object):
             #weight_t = 1.0 - self.weight_on_cost # self.sess.run(1.0-self.weight_on_cost)
             #loss_actual0 = weight_t*u_t0 + weight_c*u_c0
             if i%100==0:
+                weight_on_cost_seq.append(w)
                 training_res_seq.append(u0)
                 #Get the strategy under hard-dunbar
                 self.calc_performance_hard_dunbar()
@@ -428,13 +436,16 @@ class Organization(object):
                     self.weight_on_cost.load(self.weight_on_cost_val,self.sess)
                     #_=self.sess.run(self.assign_weight)
                 if (i>niters/4) and ( self.decay != None ):
-                    lr = float(lrinit) / (1 + i*self.decay) # Learn less over time
+                    lr = float(lrinit) / (1. + i*self.decay) # Learn less over time
+                    lr = lr/(1.+self.decay)
+                lr_seq.append(lr)
                 if verbose:
                     print('----')
                     print  ("iter"+str(i)+": Loss function=" + str(u0) )
                     print("task loss:"+str(u_t0)+',cost loss:'+str(u_c0) )
                     if self.weight_update is True:
                         print("weight on cost:"+str(w))
+                        print('learning rate:'+str(lr))
                     print("task loss under hard dunbar:"+str(self.welfare_hard_dunbar))
                     #print('Actual Loss function2:'+str(loss_actual0))
                     print('----')
@@ -466,7 +477,8 @@ class Organization(object):
         self.training_res_seq = training_res_seq
         self.task_loss_seq = task_loss_seq
         self.task_loss_hd_seq = task_loss_hd_seq
-        
+        self.weight_on_cost_seq = weight_on_cost_seq
+        self.lr_seq = lr_seq
 
 
 
@@ -551,44 +563,7 @@ class Organization(object):
 
 
                 
-        
-
-
-class Results(object):
-    def __init__(self, training_res, listen_params, welfare, cost, binary_cutoff=0.0):
-        self.training_res = training_res
-        self.listen_params = listen_params
-        self.welfare = welfare
-        self.welfareCost = cost
-        self.G = None
-        self.CG = None
-        self.binary_cutoff=binary_cutoff
-
-    # This is Justin's original graphing code (more or less)
-    # It is intended for rendering networks as PNGs directly in NetworkX,
-    # which I haven't been doing.
-    def generate_graph(self):
-        numenv = len(self.listen_params[0].flatten())-1 #minus one for bias
-        numnodes = numenv + len(self.listen_params)
-        G = nx.DiGraph()
-
-        G.clear()
-        hpos=0
-        for i in range(numenv):
-            G.add_node(i, node_color="b", name="E" + str(i),pos=(hpos,0))
-            hpos=hpos+1
-        for aix, agent in enumerate(self.listen_params):
-            nodenum = numenv +aix
-            G.add_node(nodenum, node_color='r', name = "A" + str(aix))
-            for eix, val in enumerate(agent.flatten()):
-                if eix>0: #to avoid bias
-                    if abs(val) > self.binary_cutoff:
-                        G.add_edge(eix-1, nodenum, width=val)
-        self.G = G
-
-        #debug
-        self.numenv=numenv
-        self.nomnodes=numnodes
+    
 
 
 def runIteration(parameter,iter_train,iter_restart,filename,dirname):
@@ -615,6 +590,8 @@ def runIteration(parameter,iter_train,iter_restart,filename,dirname):
         pickle.dump(orgA.task_loss_seq, open(dirname+filename_trial+"_task_loss_seq.pickle","wb"))
         pickle.dump(orgA.task_loss_hd_seq, open(dirname+filename_trial+"_task_loss_hd_seq.pickle","wb"))
         
+        pickle.dump(orgA.weight_on_cost_seq, open(dirname+filename_trial+"_weight_on_cost_seq.pickle","wb"))
+        pickle.dump(orgA.lr_seq, open(dirname+filename_trial+"_lr_seq.pickle","wb"))
         
         pickle.dump(orgA.out_params_final, open(dirname+filename_trial+"_out_params_final.pickle","wb"))
         pickle.dump(orgA.action_params_final, open(dirname+filename_trial+"_action_params_final.pickle","wb"))
@@ -636,10 +613,10 @@ if __name__=="__main__":
 
     start_time = time.time()
     
-    parameters = [
+    parameters_for_grid = [
         {"innoise" : [1.], # Stddev on incomming messages
         "outnoise" : [1.], # Stddev on outgoing messages
-        "num_environment" : [6,8], # Num univariate environment nodes
+        "num_environment" : [6,12], # Num univariate environment nodes
         "num_agents" : [10], # Number of Agents
         "num_managers" : ["AllButOne"], # Number of Agents that do not contribute
         "fanout" : [1], # Distinct messages an agent can say
@@ -648,18 +625,20 @@ if __name__=="__main__":
         "batchsize" : [1000],#200,#, # Training Batch Size
         "weight_on_cost":[0.0],
         "weight_update":[True],
-        "dunbar_number":[2],
+        "dunbar_number":[2,4],
         "dunbar_function":["sigmoid_ratio"],
         "initializer_type":["normal"],
+        "dropout_type":[None,'OnlyDunbar','AllIn'],
+        'decay':[.1],
         "description" : ["Baseline"]}
     ]
     
-    parameters = list(ParameterGrid(parameters))
+    parameters = list(ParameterGrid(parameters_for_grid))
     
     n_param = len(parameters)
     
-    iteration_train = 300
-    iteration_restart = 2
+    iteration_train = 10000
+    iteration_restart = 5
     
     exec_date = datetime.datetime.now().strftime('%B%d_%I%M')  
     
@@ -687,98 +666,9 @@ if __name__=="__main__":
         '''
 
 
-    '''
-    parameters.append(
-        {"innoise" : 1., # Stddev on incomming messages
-        "outnoise" : 1., # Stddev on outgoing messages
-        "num_environment" : 6, # Num univariate environment nodes
-        "num_agents" : 10, # Number of Agents
-        "num_managers" : 9, # Number of Agents that do not contribute
-        "fanout" : 1, # Distinct messages an agent can say
-        #"statedim" : 1, # Dimension of Agent State
-        "envnoise": 1, # Stddev of environment state
-        "envobsnoise" : 1, # Stddev on observing environment
-        "batchsize" : 1000,#200,#, # Training Batch Size
-        "weight_on_cost":0.0,
-        "weight_update":True,
-        "dunbar_number":3,
-        "dunbar_function":"quad_ratio",
-        "initializer_type":"normal",
-        "description" : "Baseline"}
-    )
-    
-    iterations=1000
-    orgA = Organization(optimizer="None", tensorboard_filename='board_log',**parameters[0])
-    orgA.train(iterations, iplot=False, verbose=True)
-
-
-    filename = "orgA"
-    pickle.dump(parameters[0], open(filename+"_parameters.pickle","wb"))
-    pickle.dump(orgA.training_res_final, open(filename+"_training_res_final.pickle","wb"))
-    pickle.dump(orgA.out_params_final, open(filename+"_out_params_final.pickle","wb"))
-    pickle.dump(orgA.action_params_final, open(filename+"_action_params_final.pickle","wb"))
-
-    '''
 
 
     end_time = time.time()
     time_elapsed = end_time-start_time
     print('time: ',time_elapsed)
 
-
-
-
-
-    '''
-    orgA_result = Results(training_res=orgA.training_res, listen_params=orgA.out_params, welfare=orgA.welfare, cost=None,binary_cutoff=.001)
-    orgA_result.generate_graph()
-
-
-
-
-    #-------------------
-    position={}
-    color = []
-    for i in range(parameters[0]['num_environment']):
-        position[i] = (i,0)
-        color.append('b')
-    hpos=1
-    for i in range(parameters[0]['num_environment'], parameters[0]['num_environment']+ parameters[0]['num_agents']):
-        position[i] = (i-parameters[0]['num_environment'],hpos)
-        color.append('r')
-        hpos=hpos + i
-
-
-    if False:
-        nx.draw(orgA_result.G, with_labels=True, font_weight='bold',pos=position,node_color=color)
-        plt.savefig("plot1.png")
-
-        #nx.draw_kamada_kawai(orgA_result.G, with_labels=True, font_weight='bold')
-
-        #orgA.out_params
-
-        fig, ax = plt.subplots()
-        ax.plot([1],[1])
-        ax.set_xlim(0,iterations)
-        ax.set_ylim(0,np.max(orgA.training_res))
-        ax.set_ylabel("Loss")
-        ax.set_xlabel("Training Epoch")
-        #ax.plot(np.arange(len(y)), np.log(y),".")
-        #line.set_data(np.arange(len(y)), np.log(y))
-        #fig.canvas.draw()
-        ax.plot(np.arange(len(orgA.training_res)), orgA.training_res,".")
-        plt.savefig("plot2.png")
-
-    end_time = time.time()
-    time_elapsed = end_time-start_time
-    print('time: ',time_elapsed)
-    '''
-
-
-    '''
-    filename = "orgA"
-    pickle.dump(orgA, open(filename+"_class.pickle","wb"))
-    #pickle.dump(orgA.out_params, open(filename + "_out_params.pickle", "wb"))
-    #pickle.dump(orgA.training_res, open(filename + "_res.pickle", "wb"))
-    #pickle.dump(orgA_result.G, open(filename + "_G.pickle", "wb"))
-    '''
