@@ -14,7 +14,7 @@ from matplotlib import pyplot as plt
 
 
 class NCO_result():
-    def __init__(self,params,out_param_hd,action_param_hd,training_res_seq,task_loss_seq,task_loss_hd_seq):
+    def __init__(self,params,out_param_hd,action_param_hd,training_res_seq,task_loss_seq,task_loss_hd_seq,filename=None):
         self.out_param_hd = out_param_hd
         self.action_param_hd = action_param_hd
         self.params = params    
@@ -23,7 +23,9 @@ class NCO_result():
         self.task_loss_seq=task_loss_seq
         self.task_loss_hd_seq=task_loss_hd_seq
         
-    def draw_graph(self):
+        self.filename = filename
+        
+    def graph_network(self):
         
         num_agents = self.params['num_agents']
         if self.params["num_managers"] == 'AllButOne':
@@ -96,15 +98,19 @@ class NCO_result():
                 label_list.append('A')
             
         pos=nx.get_node_attributes(G,'pos')
-        
+        fig = plt.figure()
         nx.draw(G,pos=pos,node_color=color_list,with_label=True)
+        if self.filename is not None:
+            fig.savefig(self.filename+"_network.png")
+        plt.clf()
+        
         
     def graph_welfare(self):
         
         fig, ax = plt.subplots()
         ax.plot([1],[1])
         ax.set_xlim(0,len(self.training_res_seq))
-        ax.set_ylim(0,np.max(self.training_res_seq))
+        ax.set_ylim(0,np.max(self.task_loss_hd_seq))
         ax.set_ylabel("Loss")
         ax.set_xlabel("Training Epoch")
         #ax.plot(np.arange(len(y)), np.log(y),".")
@@ -112,21 +118,28 @@ class NCO_result():
         #fig.canvas.draw()
         ax.plot(np.arange(len(training_res_seq)), training_res_seq,".")
         ax.plot(np.arange(len(task_loss_seq)), task_loss_seq,".")
-        ax.plot(np.arange(len(task_loss_hd_seq)), task_loss_hd_seq,".")
+        ax.plot(np.arange(len(task_loss_hd_seq)), task_loss_hd_seq,"*")
+        if self.filename is not None:
+            fig.savefig(self.filename+"_loss.png")
+        plt.clf()
 
 
 #nx.draw_kamada_kawai(G, with_labels=True, font_weight='bold')
         
         
 if __name__=="__main__":
+
+    iteration_restart = 5
+    n_param = 12
     
-    dirname = 'result_September23_0440/'
+    dirname = 'result_September24_0413/'
+    
+    filname_trial = "trial"+str(0)+'_'
 
     filename_setting = "Setting"+str(0)+'_'
-    filname_trial = "trial"+str(0)+'_'
-    
+
     filename = dirname+filename_setting+filname_trial
-    
+        
     
     params = pickle.load(open(filename+"parameters.pickle","rb") )
     out_param_hd = pickle.load(open(filename+"out_params_hd_final.pickle","rb") )
@@ -135,8 +148,33 @@ if __name__=="__main__":
     task_loss_seq = pickle.load(open(filename+"task_loss_seq.pickle","rb") )
     task_loss_hd_seq = pickle.load(open(filename+"task_loss_hd_seq.pickle","rb") )
 
-    result = NCO_result(params,out_param_hd,action_param_hd,training_res_seq,task_loss_seq,task_loss_hd_seq)
-
-
-    result.graph_welfare()
+    out_param = pickle.load(open(filename+"out_params_final.pickle","rb") )
+    action_param = pickle.load( open(filename+"action_params_final.pickle","rb")  )
+    
+    env_pattern = pickle.load( open(dirname+filename_setting+"env_pattern_input.pickle","rb")  )
+    
+    
+    '''
+    for i in range(iteration_restart):
+        for j in range(n_param):
+            filname_trial = "trial"+str(i)+'_'
+    
+            filename_setting = "Setting"+str(j)+'_'
+    
+            filename = dirname+filename_setting+filname_trial
+                
+            
+            params = pickle.load(open(filename+"parameters.pickle","rb") )
+            out_param_hd = pickle.load(open(filename+"out_params_hd_final.pickle","rb") )
+            action_param_hd = pickle.load( open(filename+"action_params_hd_final.pickle","rb")  )
+            training_res_seq = pickle.load(open(filename+"training_res_seq.pickle","rb") )
+            task_loss_seq = pickle.load(open(filename+"task_loss_seq.pickle","rb") )
+            task_loss_hd_seq = pickle.load(open(filename+"task_loss_hd_seq.pickle","rb") )
+        
+            result = NCO_result(params,out_param_hd,action_param_hd,training_res_seq,task_loss_seq,task_loss_hd_seq,filename=filename)
+        
+            result.graph_network()
+            result.graph_welfare()
+            
+    '''
     

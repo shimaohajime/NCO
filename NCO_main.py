@@ -342,9 +342,13 @@ class Organization(object):
         else:
             print('Weight on cost:'+str(self.weight_on_cost))
         for x in self.agents:
-            weights_msg = tf.abs(x.out_weights[1:]) #bias doesn't count
+            #weights_msg = tf.abs(x.out_weights[1:]) #bias doesn't count
+            if x.id>=self.num_managers:
+                weights_msg = 0.0
+            else:
+                weights_msg = tf.abs(x.out_weights[1:])
             if x.id<self.num_managers:
-                weights_action = 0
+                weights_action = 0.0
             else:
                 weights_action = tf.abs(x.action_weights[1:])
             
@@ -385,10 +389,12 @@ class Organization(object):
             elif self.dunbar_function is "quad_kth":
                 cost = tf.square(bottom)
                 
-                
             else:
                 print("Dunbar cost function type not specified")
                 return
+
+            if x.id>=self.num_managers:
+                cost = cost*1000. #penalize actor's weight severer
                 
             penalties.append( [cost] )
         penalty = tf.stack(penalties)
@@ -428,14 +434,15 @@ class Organization(object):
                 weight_on_cost_seq.append(w)
                 training_res_seq.append(u0)
                 #Get the strategy under hard-dunbar
-                self.calc_performance_hard_dunbar()
                 task_loss_seq.append(u_t0)
-                task_loss_hd_seq.append(self.welfare_hard_dunbar)
+                if i%1000==0:
+                    self.calc_performance_hard_dunbar()
+                    task_loss_hd_seq.append(self.welfare_hard_dunbar)
                 if (i>niters/4) and (self.weight_update is True) and (self.weight_on_cost_val < .8):
                     self.weight_on_cost_val = self.weight_on_cost_val+.01
                     self.weight_on_cost.load(self.weight_on_cost_val,self.sess)
                     #_=self.sess.run(self.assign_weight)
-                if (i>niters/4) and ( self.decay != None ):
+                if (i>niters/3) and ( self.decay != None ):
                     lr = float(lrinit) / (1. + i*self.decay) # Learn less over time
                     lr = lr/(1.+self.decay)
                 lr_seq.append(lr)
@@ -495,7 +502,13 @@ class Organization(object):
 
     def calc_performance_hard_dunbar(self):
         for i,a in enumerate(self.agents):
+            
+            
             weights_msg = tf.abs(a.out_weights[1:]) #bias doesn't count
+            if a.id>=self.num_managers:
+                weights_msg = tf.zeros_like(a.out_weights[1:])
+            else:
+                weights_msg = tf.abs(a.out_weights[1:])
             if a.id<self.num_managers:
                 weights_action = tf.zeros_like(a.action_weights[1:])
             else:
@@ -504,8 +517,8 @@ class Organization(object):
             weights = weights_msg + weights_action #already bias not included
             top_k = tf.transpose(tf.nn.top_k(tf.transpose(weights), k=self.dunbar_number+1,sorted=True).values)
             top = top_k[0]
-            bottom = top_k[self.dunbar_number]
-            one_above_bottom = top_k[self.dunbar_number-1]
+            bottom = top_k[self.dunbar_number] #One that has to be small already
+            one_above_bottom = top_k[self.dunbar_number-1]#One that is allowed to be large
             zeros = tf.zeros_like(weights,dtype=tf.float64)
             
             '''
@@ -530,6 +543,7 @@ class Organization(object):
 
 
         self.debug_out_weights_hd = self.sess.run(out_weights_hard_dunbar)
+        self.debug_action_weights_hd = self.sess.run(action_weights_hard_dunbar)
 
         #Under construction from here.
         cross_entropy_hard_dunbar_list = []
@@ -573,6 +587,8 @@ def runIteration(parameter,iter_train,iter_restart,filename,dirname):
     env_class.create_env()
     env_input = env_class.environment
     env_pattern_input = env_class.env_pattern
+        
+    pickle.dump(env_pattern_input, open(dirname+filename+"_env_pattern_input.pickle","wb"))
 
     
     for i in range(iter_restart):
@@ -581,7 +597,7 @@ def runIteration(parameter,iter_train,iter_restart,filename,dirname):
 
         filename_trial = filename + '_trial' + str(i)
         orgA = Organization(optimizer="None", tensorboard_filename='board_log_'+filename,env_input=env_input,env_pattern_input=env_pattern_input,**parameter)
-        orgA.train(iter_train, iplot=False, verbose=True)
+        orgA.train(iter_train, iplot=False, verbose=False)
         
         
     
@@ -616,7 +632,7 @@ if __name__=="__main__":
     parameters_for_grid = [
         {"innoise" : [1.], # Stddev on incomming messages
         "outnoise" : [1.], # Stddev on outgoing messages
-        "num_environment" : [6,12], # Num univariate environment nodes
+        "num_environment" : [6], # Num univariate environment nodes
         "num_agents" : [10], # Number of Agents
         "num_managers" : ["AllButOne"], # Number of Agents that do not contribute
         "fanout" : [1], # Distinct messages an agent can say
@@ -628,7 +644,7 @@ if __name__=="__main__":
         "dunbar_number":[2,4],
         "dunbar_function":["sigmoid_ratio"],
         "initializer_type":["normal"],
-        "dropout_type":[None,'OnlyDunbar','AllIn'],
+        "dropout_type":[None],
         'decay':[.1],
         "description" : ["Baseline"]}
     ]
@@ -637,7 +653,7 @@ if __name__=="__main__":
     
     n_param = len(parameters)
     
-    iteration_train = 10000
+    iteration_train = 50000
     iteration_restart = 5
     
     exec_date = datetime.datetime.now().strftime('%B%d_%I%M')  
