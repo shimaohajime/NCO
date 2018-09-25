@@ -394,12 +394,13 @@ class Organization(object):
                 return
 
             if x.id>=self.num_managers:
-                cost = cost*1000. #penalize actor's weight severer
+                cost = cost*10. #penalize actor's weight severer
                 
             penalties.append( [cost] )
         penalty = tf.stack(penalties)
         #return tf.sigmoid(tf.reduce_sum(penalty))
-        return tf.reduce_mean(penalty)
+        #return tf.reduce_mean(penalty)
+        return tf.pow( tf.reduce_sum( tf.pow(penalty, 4)  ), 1/4  )
 
 
 
