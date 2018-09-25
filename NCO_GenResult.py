@@ -126,17 +126,35 @@ class NCO_result():
 
 #nx.draw_kamada_kawai(G, with_labels=True, font_weight='bold')
         
+
+def calc_Dunbar_list(action_param,out_param, num_agents,num_managers,dunbar_number,**kwarg):
+    
+    Dunbar_ratio = []
+    for a in range(num_agents):
+        if num_managers == "AllButOne":
+            num_managers = num_agents-1
+        if a<num_managers:
+            weight_sorted = - np.sort(  -np.abs( out_param[a][1:] ).flatten() )
+        elif a>=num_managers:
+            weight_sorted = - np.sort(  -np.abs( action_param[a][1:] ).flatten() )
+        Dplus1_th = weight_sorted[dunbar_number]
+        D_th = weight_sorted[dunbar_number-1]
+        Dunbar_ratio.append(Dplus1_th/D_th)
+    return Dunbar_ratio
+            
+    
+    
         
 if __name__=="__main__":
 
     iteration_restart = 5
     n_param = 12
     
-    dirname = 'result_September24_0413/'
+    dirname = 'result_September24_1050/'
     
     filname_trial = "trial"+str(0)+'_'
 
-    filename_setting = "Setting"+str(0)+'_'
+    filename_setting = "Setting"+str(1)+'_'
 
     filename = dirname+filename_setting+filname_trial
         
@@ -152,6 +170,8 @@ if __name__=="__main__":
     action_param = pickle.load( open(filename+"action_params_final.pickle","rb")  )
     
     env_pattern = pickle.load( open(dirname+filename_setting+"env_pattern_input.pickle","rb")  )
+    
+    Dunbar_list = calc_Dunbar_list(action_param,out_param,**params)
     
     
     '''

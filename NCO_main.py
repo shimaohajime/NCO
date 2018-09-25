@@ -24,6 +24,7 @@ import pickle
 import multiprocessing
 from sklearn.model_selection import ParameterGrid
 import datetime
+import pytz
 
 def createFolder(directory):
     try:
@@ -358,6 +359,7 @@ class Organization(object):
             top = top_k[0]
             bottom = top_k[self.dunbar_number]
             one_above_bottom = top_k[self.dunbar_number-1]
+            below_bottom = top_k[self.dunbar_number:]
             
             top = tf.cond(tf.reshape(tf.equal(top,0.0),[]),lambda:top+.0000001,lambda:top  ) #To make the denom non-zero
             one_above_bottom = tf.cond(tf.reshape(tf.equal(one_above_bottom,0.0),[]),lambda:one_above_bottom+.0000001,lambda:one_above_bottom  ) #To make the denom non-zero
@@ -389,12 +391,15 @@ class Organization(object):
             elif self.dunbar_function is "quad_kth":
                 cost = tf.square(bottom)
                 
+            elif self.dunbar_function is "L4":
+                cost = tf.pow(tf.educe_sum(tf.pow(below_bottom/bottom, 4)),1/4)
+                
             else:
                 print("Dunbar cost function type not specified")
                 return
 
             if x.id>=self.num_managers:
-                cost = cost*10. #penalize actor's weight severer
+                cost = cost #penalize actor's weight severer
                 
             penalties.append( [cost] )
         penalty = tf.stack(penalties)
@@ -645,7 +650,8 @@ if __name__=="__main__":
         "dunbar_number":[2,4],
         "dunbar_function":["sigmoid_ratio"],
         "initializer_type":["normal"],
-        "dropout_type":[None],
+        "dropout_type":['OnlyDunbar','AllIn'],
+        'dropout_rate':[.1,.3],
         'decay':[.1],
         "description" : ["Baseline"]}
     ]
@@ -657,7 +663,7 @@ if __name__=="__main__":
     iteration_train = 50000
     iteration_restart = 5
     
-    exec_date = datetime.datetime.now().strftime('%B%d_%I%M')  
+    exec_date = datetime.datetime.now(pytz.timezone('US/Mountain')).strftime('%B%d_%H%M')  
     
     dirname ='./result_'+exec_date
     
