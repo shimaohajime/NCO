@@ -150,11 +150,11 @@ if __name__=="__main__":
     iteration_restart = 5
     n_param = 12
     
-    dirname = 'result_September24_1050/'
+    dirname = 'result_September25_1313/'
     
     filname_trial = "trial"+str(0)+'_'
 
-    filename_setting = "Setting"+str(1)+'_'
+    filename_setting = "Setting"+str(5)+'_'
 
     filename = dirname+filename_setting+filname_trial
         
