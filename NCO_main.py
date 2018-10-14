@@ -749,16 +749,16 @@ if __name__=="__main__":
         "envnoise": [1], # Stddev of environment state
         "envobsnoise" : [1], # Stddev on observing environment
         "batchsize" : [1000],#200,#, # Training Batch Size
-        "weight_on_cost":[0.0],
-        "weight_update":[False],
+        "weight_on_cost":[0.0,.5],
+        "weight_update":[False,True],
         "dunbar_number":[2,4],
-        "dunbar_function":["sigmoid_ratio"],
+        "dunbar_function":["sigmoid_ratio","sigmoid_kth","L4"],  #
         "initializer_type":["normal"],
-        "dropout_type":['OnlyDunbar'],
-        'dropout_rate':[.0],
+        "dropout_type":[None,'OnlyDunbar','AllIn'],
+        'dropout_rate':[.2],
         'decay':[.002],
         "description" : ["Baseline"],
-        'network_update_method':['pruning'],
+        'network_update_method':[None],#'pruning'
         "L1_norm":[.1]}
     ]
 
