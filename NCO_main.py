@@ -197,7 +197,8 @@ class Organization(object):
         self.L1_norm = L1_norm
 
         if weight_update is False:
-            self.weight_on_cost = tf.constant(weight_on_cost,dtype=tf.float64) #the weight on the listening cost on loss function
+            self.weight_on_cost = tf.constant(weight_on_cost,dtype=tf.float64) #the weight on the listening cost in loss function
+            self.weight_on_cost_val = weight_on_cost
         elif weight_update is True:
             self.weight_on_cost = tf.get_variable(name="weight_on_cost",dtype=tf.float64,initializer=tf.constant(weight_on_cost,dtype=tf.float64),trainable=False  )
             self.weight_on_cost_val = weight_on_cost
@@ -211,8 +212,9 @@ class Organization(object):
         with tf.name_scope("Objective"):
             self.objective_task = self._make_loss_task()
             self.objective_cost = self._make_loss_cost()
+            self.objective_L1 = self._make_loss_L1()
             # self.objective = self.loss()
-            self.objective = self.weight_on_cost * self.objective_cost + (1-self.weight_on_cost) * self.objective_task
+            self.objective = self.weight_on_cost * self.objective_cost + (1-self.weight_on_cost) * self.objective_task + self.objective_L1
             tf.summary.scalar("Objective",self.objective)
             tf.summary.scalar("Objective_task",self.objective_task)
             tf.summary.scalar("Objective_cost",self.objective_cost)
@@ -353,6 +355,11 @@ class Organization(object):
     def _make_loss_cost(self):
         mean_listening_cost = self.dunbar_listening_cost()
         return mean_listening_cost
+    
+    def _make_loss_L1(self):
+        sum_L1_norm = self.L1_norm_cost()
+        return sum_L1_norm
+        
 
     def pattern_detected(self):
         patterns = []
@@ -372,6 +379,25 @@ class Organization(object):
         return pattern
 
 
+    def L1_norm_cost(self):
+        penalties = []
+        for x in self.agents:
+            #weights_msg = tf.abs(x.out_weights[1:]) #bias doesn't count
+            if x.id>=self.num_managers:
+                weights_msg = 0.0
+            else:
+                weights_msg = tf.abs(x.out_weights[1:])
+            if x.id<self.num_managers:
+                weights_action = 0.0
+            else:
+                weights_action = tf.abs(x.action_weights[1:])
+            weights = (weights_msg + weights_action) * x.inedge #CHECK DIMENSION
+            cost = tf.reduce_sum( tf.abs(weights) )*self.L1_norm
+            penalties.append( [cost] )
+        penalty = tf.stack(penalties)
+        return tf.reduce_sum(penalty)
+
+
 
     # Implemented Wolpert's model for Dunbars number
     # This involves looking at the biggest value, and the (dunbar+1) biggest value,
@@ -380,11 +406,11 @@ class Organization(object):
     def dunbar_listening_cost(self, cost_violate=1000., cutoff=.01):
         penalties = []
         print("Dunbar Number: " + str(self.dunbar_number))
-        print('Dunbar Function:'+self.dunbar_function)
+        print('Dunbar Function:'+str(self.dunbar_function))
         if self.weight_update is True:
             print('Weight on cost:update')
         else:
-            print('Weight on cost:'+str(self.weight_on_cost))
+            print('Weight on cost:fixed at '+str(self.weight_on_cost_val))
         for x in self.agents:
             #weights_msg = tf.abs(x.out_weights[1:]) #bias doesn't count
             if x.id>=self.num_managers:
@@ -434,8 +460,8 @@ class Organization(object):
             elif self.dunbar_function is "L4":
                 cost = tf.pow(tf.educe_sum(tf.pow(below_bottom/bottom, 4)),1/4)
                 
-            elif self.dunbar_function is "None":
-                cost = 0.
+            elif self.dunbar_function is None:
+                cost = tf.constant(0., dtype=tf.float64)
 
             else:
                 print("Dunbar cost function type not specified")
@@ -444,8 +470,6 @@ class Organization(object):
             if x.id>=self.num_managers:
                 cost = cost #penalize actor's weight severer
                 
-            cost = cost +tf.reduce_sum( tf.abs(weights) )*self.L1_norm
-
             penalties.append( [cost] )
         penalty = tf.stack(penalties)
         #return tf.sigmoid(tf.reduce_sum(penalty))
@@ -721,7 +745,7 @@ def runIteration(parameter,iter_train,iter_restart,filename,dirname,env_type='ma
         orgA.welfare_final
         welfare_final_iterations.append(orgA.welfare_final)
     if save_result:
-        pickle.dump(welfare_final_iterations, open(dirname+filename_trial+"_welfare_final_iterations.pickle","wb"))
+        pickle.dump(welfare_final_iterations, open(dirname+filename+"_welfare_final_iterations.pickle","wb"))
     
 
     return orgA
@@ -732,6 +756,12 @@ def getScriptPath():
 
 
 if __name__=="__main__":
+    
+    #------------------
+    Description = ''
+    #------------------
+    
+    
     print ('Current working directory : ', os.getcwd() )
     os.chdir(getScriptPath())
     print ('Changed working directory : ', os.getcwd() )
@@ -743,19 +773,19 @@ if __name__=="__main__":
         {"innoise" : [1.], # Stddev on incomming messages
         "outnoise" : [1.], # Stddev on outgoing messages
         "num_environment" : [6], # Num univariate environment nodes
-        "num_agents" : [10], # Number of Agents
+        "num_agents" : [20], # Number of Agents
         "num_managers" : ["AllButOne"], # Number of Agents that do not contribute
         "fanout" : [1], # Distinct messages an agent can say
         "envnoise": [1], # Stddev of environment state
         "envobsnoise" : [1], # Stddev on observing environment
         "batchsize" : [1000],#200,#, # Training Batch Size
-        "weight_on_cost":[0.0,.5],
-        "weight_update":[False,True],
-        "dunbar_number":[2,4],
-        "dunbar_function":["sigmoid_ratio","sigmoid_kth","L4"],  #
+        "weight_on_cost":[0.0],
+        "weight_update":[False],
+        "dunbar_number":[2,4,8,16],
+        "dunbar_function":[None],  #"sigmoid_ratio","sigmoid_kth","L4"
         "initializer_type":["normal"],
-        "dropout_type":[None,'OnlyDunbar','AllIn'],
-        'dropout_rate':[.2],
+        "dropout_type":[None],
+        'dropout_rate':[.0],
         'decay':[.002],
         "description" : ["Baseline"],
         'network_update_method':[None],#'pruning'
@@ -767,11 +797,11 @@ if __name__=="__main__":
     n_param = len(parameters)
 
     iteration_train = 50000
-    iteration_restart = 20
+    iteration_restart = 2
 
     exec_date = datetime.datetime.now(pytz.timezone('US/Mountain')).strftime('%B%d_%H%M')
 
-    dirname ='./result_'+exec_date
+    dirname ='./result_'+exec_date + Description
 
     createFolder(dirname)
 

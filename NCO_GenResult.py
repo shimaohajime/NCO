@@ -14,7 +14,7 @@ from matplotlib import pyplot as plt
 
 
 class NCO_result():
-    def __init__(self,params,out_param_hd,action_param_hd,training_res_seq,task_loss_seq,task_loss_hd_seq,filename=None):
+    def __init__(self,params,out_param_hd,action_param_hd,training_res_seq,task_loss_seq,task_loss_hd_seq,lr_seq,filename=None):
         self.out_param_hd = out_param_hd
         self.action_param_hd = action_param_hd
         self.params = params    
@@ -22,6 +22,8 @@ class NCO_result():
         self.training_res_seq = training_res_seq    
         self.task_loss_seq=task_loss_seq
         self.task_loss_hd_seq=task_loss_hd_seq
+        
+        self.lr_seq = lr_seq
         
         self.filename = filename
         
@@ -122,6 +124,25 @@ class NCO_result():
         if self.filename is not None:
             fig.savefig(self.filename+"_loss.png")
         plt.clf()
+        
+        
+    def graph_across_epoch(self,var,ylabel,save=False):
+        
+        fig, ax = plt.subplots()
+        ax.plot([1],[1])
+        ax.set_xlim(0,len(var))
+        ax.set_ylim(0,np.max(var))
+        ax.set_ylabel(ylabel)
+        ax.set_xlabel("Training Epoch")
+        #ax.plot(np.arange(len(y)), np.log(y),".")
+        #line.set_data(np.arange(len(y)), np.log(y))
+        #fig.canvas.draw()
+        ax.plot(np.arange(len(var)), var,"-.")
+        if (self.filename is not None) and save:
+            fig.savefig(self.filename+"_"+ylabel+".png")
+        plt.show()
+        plt.clf()
+        
 
 
 #nx.draw_kamada_kawai(G, with_labels=True, font_weight='bold')
@@ -147,14 +168,18 @@ def calc_Dunbar_list(action_param,out_param, num_agents,num_managers,dunbar_numb
         
 if __name__=="__main__":
 
-    iteration_restart = 5
-    n_param = 12
+    iteration_restart = 20
+    n_param = 2
     
-    dirname = 'result_September25_1313/'
+    dirname = 'result_October13_1350/'
     
-    filname_trial = "trial"+str(0)+'_'
+    i_trial = 19
+    i_setting = 1
+    
+    
+    filname_trial = "trial"+str(i_trial)+'_'
 
-    filename_setting = "Setting"+str(5)+'_'
+    filename_setting = "Setting"+str(i_setting)+'_'
 
     filename = dirname+filename_setting+filname_trial
         
@@ -173,6 +198,18 @@ if __name__=="__main__":
     
     Dunbar_list = calc_Dunbar_list(action_param,out_param,**params)
     
+    welfare_final_iterations = pickle.load(open(filename+"welfare_final_iterations.pickle","rb") )
+    
+    
+    lr_seq = pickle.load(open(filename+"lr_seq.pickle","rb") )
+    
+
+
+    result = NCO_result(params,out_param_hd,action_param_hd,training_res_seq,task_loss_seq,task_loss_hd_seq,lr_seq,filename=filename)
+
+    result.graph_across_epoch(result.task_loss_seq,ylabel='Task Loss')
+
+    result.graph_across_epoch(result.lr_seq,ylabel='Learning Rate')
     
     '''
     for i in range(iteration_restart):
