@@ -171,10 +171,11 @@ if __name__=="__main__":
     iteration_restart = 2
     n_param = 2
     
-    dirname = 'result_October15_1345/'
+    #dirname = 'result_October15_1345/'
+    dirname = 'result_October14_1439/'
     
-    i_trial = 1
-    i_setting = 1
+    i_trial = 3
+    i_setting = 0
     
     
     filname_trial = "trial"+str(i_trial)+'_'
@@ -198,7 +199,8 @@ if __name__=="__main__":
     
     Dunbar_list = calc_Dunbar_list(action_param,out_param,**params)
     
-    welfare_final_iterations = pickle.load(open(dirname+filename_setting+"welfare_final_iterations.pickle","rb") )
+    #welfare_final_iterations = pickle.load(open(dirname+filename_setting+"welfare_final_iterations.pickle","rb") )
+    welfare_final_iterations = pickle.load(open(dirname+'Setting'+str(i_setting)+'_trial19_'+"welfare_final_iterations.pickle","rb") )
     
     
     lr_seq = pickle.load(open(filename+"lr_seq.pickle","rb") )

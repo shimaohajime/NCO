@@ -719,12 +719,22 @@ def runIteration(parameter,iter_train,iter_restart,filename,dirname,env_type='ma
     welfare_final_iterations = []
 
     for i in range(iter_restart):
+        
+        start_time = time.time()
+        
+        
         tf.reset_default_graph()
         tf.summary.FileWriterCache.clear()
 
         filename_trial = filename + '_trial' + str(i)
         orgA = Organization(optimizer="None", tensorboard_filename='board_log_'+filename,env_input=env_input,env_pattern_input=env_pattern_input,**parameter)
         orgA.train(iter_train, iplot=False, verbose=verbose)
+
+
+        end_time = time.time()
+        time_elapsed = end_time-start_time
+
+        parameter['time_elapsed']=time_elapsed
 
         if save_result:
 
@@ -741,6 +751,8 @@ def runIteration(parameter,iter_train,iter_restart,filename,dirname,env_type='ma
             pickle.dump(orgA.out_params_hd_final, open(dirname+filename_trial+"_out_params_hd_final.pickle","wb"))
             pickle.dump(orgA.action_params_hd_final, open(dirname+filename_trial+"_action_params_hd_final.pickle","wb"))
         
+
+
         
         orgA.welfare_final
         welfare_final_iterations.append(orgA.welfare_final)
@@ -758,7 +770,7 @@ def getScriptPath():
 if __name__=="__main__":
     
     #------------------
-    Description = ''
+    Description = '20Agent_Pruning_Long'
     #------------------
     
     
@@ -789,7 +801,7 @@ if __name__=="__main__":
         'decay':[.002],
         "description" : [Description],
         'network_update_method':['pruning'],#'pruning',None
-        "L1_norm":[.1]}
+        "L1_norm":[0.,.1]}
     ]
 
     parameters_temp = list(ParameterGrid(parameters_for_grid))
