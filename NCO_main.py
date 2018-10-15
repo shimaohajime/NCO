@@ -779,22 +779,44 @@ if __name__=="__main__":
         "envnoise": [1], # Stddev of environment state
         "envobsnoise" : [1], # Stddev on observing environment
         "batchsize" : [1000],#200,#, # Training Batch Size
-        "weight_on_cost":[0.0],
-        "weight_update":[False],
-        "dunbar_number":[2,4,8,16],
-        "dunbar_function":[None],  #"sigmoid_ratio","sigmoid_kth","L4"
+        "weight_on_cost":[0.0,.5],
+        "weight_update":[False,True],
+        "dunbar_number":[4,8],
+        "dunbar_function":[None,'sigmoid_ratio'],  #"sigmoid_ratio","sigmoid_kth","L4"
         "initializer_type":["normal"],
-        "dropout_type":[None],
-        'dropout_rate':[.0],
+        "dropout_type":[None,'OnlyDunbar'],#,'AllIn'
+        'dropout_rate':[.0,.3],
         'decay':[.002],
-        "description" : ["Baseline"],
+        "description" : [Description],
         'network_update_method':[None],#'pruning'
         "L1_norm":[.1]}
     ]
 
-    parameters = list(ParameterGrid(parameters_for_grid))
+    parameters_temp = list(ParameterGrid(parameters_for_grid))
+    n_param = len(parameters_temp)
+    parameters = []
+    
+    for i in range(n_param):
+        if parameters_temp[i]['dunbar_number']>parameters_temp[i]['num_environment']:
+            pass
+        else:
+            if (parameters_temp[i]['dropout_type'] is None):
+                parameters_temp[i]['dropout_rate']=0.0
+            if (parameters_temp[i]['dropout_rate'] == 0.0):
+                parameters_temp[i]['dropout_type']=None            
+            if (parameters_temp[i]['dunbar_function'] is None):
+                parameters_temp[i]['weight_update'] = False
+                parameters_temp[i]['weight_on_cost'] = 0.0
+            if (parameters_temp[i]['weight_update'] is False) and (parameters_temp[i]['weight_on_cost'] == 0.0):
+                parameters_temp[i]['dunbar_function'] = None
+                
+            dup = False
+            for p in parameters:
+                if parameters_temp[i]==p:
+                    dup=True
+            if dup is False:
+                parameters.append(parameters_temp[i])
 
-    n_param = len(parameters)
 
     iteration_train = 50000
     iteration_restart = 2
