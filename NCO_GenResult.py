@@ -186,6 +186,18 @@ if __name__=="__main__":
         
     
     params = pickle.load(open(filename+"parameters.pickle","rb") )
+
+    #welfare_final_iterations = pickle.load(open(dirname+filename_setting+"welfare_final_iterations.pickle","rb") )
+    welfare_final_iterations = pickle.load(open(dirname+'Setting'+str(i_setting)+'_trial19_'+"welfare_final_iterations.pickle","rb") )
+    
+    min_loss = np.min(welfare_final_iterations)
+    print('Best case loss: '+str(min_loss))
+    i_trial_best = np.argmin(welfare_final_iterations)
+    max_loss = np.max(welfare_final_iterations)
+    print('Worst case loss: '+str(max_loss))
+    i_trial_worst = np.argmax(welfare_final_iterations)
+    
+
     out_param_hd = pickle.load(open(filename+"out_params_hd_final.pickle","rb") )
     action_param_hd = pickle.load( open(filename+"action_params_hd_final.pickle","rb")  )
     training_res_seq = pickle.load(open(filename+"training_res_seq.pickle","rb") )
@@ -199,8 +211,6 @@ if __name__=="__main__":
     
     Dunbar_list = calc_Dunbar_list(action_param,out_param,**params)
     
-    #welfare_final_iterations = pickle.load(open(dirname+filename_setting+"welfare_final_iterations.pickle","rb") )
-    welfare_final_iterations = pickle.load(open(dirname+'Setting'+str(i_setting)+'_trial19_'+"welfare_final_iterations.pickle","rb") )
     
     
     lr_seq = pickle.load(open(filename+"lr_seq.pickle","rb") )

@@ -523,7 +523,7 @@ class Organization(object):
                     #lr = lr/(1.+self.decay)
 
             #Check performance with hard-dunbar (slow)
-            if i%2000==0:
+            if i%10000==0:
                 self.calc_performance_hard_dunbar()
                 task_loss_hd_seq.append(self.welfare_hard_dunbar)
 
@@ -830,7 +830,7 @@ if __name__=="__main__":
                 parameters.append(parameters_temp[i])
 
 
-    iteration_train = 500000
+    iteration_train = 200000
     iteration_restart = 2
 
     exec_date = datetime.datetime.now(pytz.timezone('US/Mountain')).strftime('%B%d_%H%M')
@@ -839,7 +839,7 @@ if __name__=="__main__":
 
     createFolder(dirname)
 
-    dirname_abs = os.getcwd() + '/result_'+exec_date
+    dirname_abs = os.getcwd() + '/result_'+exec_date + Description
 
     for i in range(n_param):
         print('********************'+'Setting'+str(i)+'********************')
