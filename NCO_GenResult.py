@@ -131,7 +131,7 @@ class NCO_result():
         fig, ax = plt.subplots()
         ax.plot([1],[1])
         ax.set_xlim(0,len(var))
-        ax.set_ylim(0,np.max(var))
+        ax.set_ylim(0.0,np.max(var))
         ax.set_ylabel(ylabel)
         ax.set_xlabel("Training Epoch")
         #ax.plot(np.arange(len(y)), np.log(y),".")
@@ -168,12 +168,12 @@ def calc_Dunbar_list(action_param,out_param, num_agents,num_managers,dunbar_numb
         
 if __name__=="__main__":
 
-    iteration_restart = 20
+    iteration_restart = 2
     n_param = 2
     
-    dirname = 'result_October13_1350/'
+    dirname = 'result_October15_1345/'
     
-    i_trial = 19
+    i_trial = 1
     i_setting = 1
     
     
@@ -198,7 +198,7 @@ if __name__=="__main__":
     
     Dunbar_list = calc_Dunbar_list(action_param,out_param,**params)
     
-    welfare_final_iterations = pickle.load(open(filename+"welfare_final_iterations.pickle","rb") )
+    welfare_final_iterations = pickle.load(open(dirname+filename_setting+"welfare_final_iterations.pickle","rb") )
     
     
     lr_seq = pickle.load(open(filename+"lr_seq.pickle","rb") )

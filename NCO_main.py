@@ -779,16 +779,16 @@ if __name__=="__main__":
         "envnoise": [1], # Stddev of environment state
         "envobsnoise" : [1], # Stddev on observing environment
         "batchsize" : [1000],#200,#, # Training Batch Size
-        "weight_on_cost":[0.0,.5],
-        "weight_update":[False,True],
-        "dunbar_number":[4,8],
-        "dunbar_function":[None,'sigmoid_ratio'],  #"sigmoid_ratio","sigmoid_kth","L4"
+        "weight_on_cost":[0.0],
+        "weight_update":[False],
+        "dunbar_number":[2,4],
+        "dunbar_function":[None],  #"sigmoid_ratio","sigmoid_kth","L4"
         "initializer_type":["normal"],
-        "dropout_type":[None,'OnlyDunbar'],#,'AllIn'
-        'dropout_rate':[.0,.3],
+        "dropout_type":[None],#,'AllIn'
+        'dropout_rate':[.0],
         'decay':[.002],
         "description" : [Description],
-        'network_update_method':[None],#'pruning'
+        'network_update_method':['pruning'],#'pruning',None
         "L1_norm":[.1]}
     ]
 
@@ -818,7 +818,7 @@ if __name__=="__main__":
                 parameters.append(parameters_temp[i])
 
 
-    iteration_train = 50000
+    iteration_train = 500000
     iteration_restart = 2
 
     exec_date = datetime.datetime.now(pytz.timezone('US/Mountain')).strftime('%B%d_%H%M')
