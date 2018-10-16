@@ -539,8 +539,13 @@ class Organization(object):
                     for a in self.agents:
                         out_params.append( self.sess.run( a.out_weights ) )
                         action_params.append( self.sess.run(a.action_weights) )
+                        
+                    prune_target = int(self.num_agents-network_update_n-1)
+                    if prune_target <= 0:
+                        prune_target = 'All'
 
                     network_new = self.network_update(self.network_prespecified_input, self.network_update_method, out_params,action_params)
+
                     self.network_prespecified_input = np.copy(network_new)
                 network_update_n = network_update_n+1
                 
@@ -619,11 +624,16 @@ class Organization(object):
         
         return top, bottom, one_above_bottom, weights
     
-    def network_update(self,network_old, update_method, out_params, action_params):
+    def network_update(self,network_old, update_method, out_params, action_params,target='All'):
         
         network_new = np.zeros_like(network_old)
         if update_method is "pruning":
             for i,a in enumerate(self.agents):
+                if target is'All':
+                    pass
+                if type(target) is int:
+                    if i<target:
+                        continue
                 out_param_i = out_params[i].flatten()
                 action_params_i = action_params[i].flatten()
                 len_weight = action_params_i.size
@@ -770,7 +780,7 @@ def getScriptPath():
 if __name__=="__main__":
     
     #------------------
-    Description = '20Agent_Pruning_Long'
+    Description = 'PruningStartFromBottom'
     #------------------
     
     
@@ -835,11 +845,11 @@ if __name__=="__main__":
 
     exec_date = datetime.datetime.now(pytz.timezone('US/Mountain')).strftime('%B%d_%H%M')
 
-    dirname ='./result_'+exec_date + Description
+    dirname ='./result_'+exec_date +'_' + Description
 
     createFolder(dirname)
 
-    dirname_abs = os.getcwd() + '/result_'+exec_date + Description
+    dirname_abs = os.getcwd() + '/result_'+exec_date +'_' + Description
 
     for i in range(n_param):
         print('********************'+'Setting'+str(i)+'********************')

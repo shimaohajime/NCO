@@ -172,10 +172,10 @@ if __name__=="__main__":
     n_param = 2
     
     #dirname = 'result_October15_1345/'
-    dirname = 'result_October14_1439/'
+    dirname = 'result_October15_175820Agent_Pruning_Long/'
     
-    i_trial = 3
-    i_setting = 0
+    i_trial = 1
+    i_setting = 1
     
     
     filname_trial = "trial"+str(i_trial)+'_'
@@ -187,8 +187,8 @@ if __name__=="__main__":
     
     params = pickle.load(open(filename+"parameters.pickle","rb") )
 
-    #welfare_final_iterations = pickle.load(open(dirname+filename_setting+"welfare_final_iterations.pickle","rb") )
-    welfare_final_iterations = pickle.load(open(dirname+'Setting'+str(i_setting)+'_trial19_'+"welfare_final_iterations.pickle","rb") )
+    welfare_final_iterations = pickle.load(open(dirname+filename_setting+"welfare_final_iterations.pickle","rb") )
+    #welfare_final_iterations = pickle.load(open(dirname+'Setting'+str(i_setting)+'_trial19_'+"welfare_final_iterations.pickle","rb") )
     
     min_loss = np.min(welfare_final_iterations)
     print('Best case loss: '+str(min_loss))
