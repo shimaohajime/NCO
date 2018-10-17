@@ -13,6 +13,7 @@ import numpy as np
 from scipy.stats import norm
 from scipy.special import comb
 from itertools import count
+from itertools import combinations
 import copy
 import matplotlib as mpl
 from matplotlib import pyplot as plt
@@ -181,7 +182,7 @@ class Organization(object):
             #num_environment+num_agents times num_agents matrix of binary
             #Includes environment, but not bias
             self.network_prespecified = tf.placeholder(tf.float64, shape=[self.num_environment+self.num_agents,self.num_agents])
-            if network_prespecified_input is None:#all the edges are possible
+            if network_prespecified_input is None: #all the edges are possible
                 temp = np.zeros([self.num_environment+self.num_agents,self.num_agents])
                 temp[np.triu_indices_from(temp,k=-self.num_environment)] = 1.
                 self.network_prespecified_input = temp
@@ -250,7 +251,7 @@ class Organization(object):
                 a.create_out_matrix(indim+1) # Plus one for bias
                 a.set_inedge_prespecified( tf.reshape(self.network_prespecified[:indim,i],[-1,1]) ) #Shape it to be [indim,1] so that it can be multiplied with weights
                 indim = indim+a.fanout #Update indim for the next agent
-        elif type(self.agent_order) is  int:
+        elif type(self.agent_order) is int:
             #If the agent is high-order, indim is (sum_i orderCi)*(num of inedge in prespecified network)+1
             #Do not take full-DAG anymore to reduce parameters
             for i,a in enumerate(self.agents):
@@ -279,6 +280,17 @@ class Organization(object):
         indata_new = tf.where( tf.logical_and(tf.less_equal(weights_mat, bottom_mat), tf.less(r, self.dropout_rate)  ),  zeros, indata  )
         return indata_new
 
+        
+    
+    def create_poly(self,indata, order):
+        indata_poly = indata
+        indim_raw = indata.get_shape()[1]
+        for i in range(2,order+1):
+            for j in combinations(np.range(indim_raw), i  ):
+                data = indata[:,j]
+                data_poly = tf.reduce_prod(data,axis=1)
+                indata_poly = tf.concat([indata_poly, data_poly], 1)
+        return indata_poly
         
 
     def build_wave(self):
@@ -317,7 +329,13 @@ class Organization(object):
 
                     indata = tf.where( tf.logical_and(tf.less_equal(weights_mat, bottom_mat), tf.less(r, self.dropout_rate)  ),  zeros, indata  )
                     '''
-                biasedin = tf.concat([tf.constant(1.0, dtype=tf.float64, shape=[self.batchsize, 1]), indata], 1) #dim:(batchsize,dim_indata+1)
+                if self.agent_order is 'linear':
+                    biasedin = tf.concat([tf.constant(1.0, dtype=tf.float64, shape=[self.batchsize, 1]), indata], 1) #dim:(batchsize,dim_indata+1)
+                elif type(self.agent_order) is int:
+                    indata_poly = self.create_poly(indata, self.agent_order)
+                    biasedin = tf.concat([tf.constant(1.0, dtype=tf.float64, shape=[self.batchsize, 1]), indata_poly], 1) #dim:(batchsize,dim_indata+1)
+                    
+                    
             a.set_received_messages(biasedin)
 
             with tf.name_scope("Output"):
@@ -336,9 +354,6 @@ class Organization(object):
             self.outputs.append(output)
             self.action_states.append(state_action)
             
-    def Fourier_expansion(self,indata,order):
-        pass
-        
 
     def _make_loss_task(self):
         if self.env_pattern_input is None:
@@ -780,7 +795,7 @@ def getScriptPath():
 if __name__=="__main__":
     
     #------------------
-    Description = 'PruningStartFromBottom'
+    Description = 'Pruning_EvenLarger'
     #------------------
     
     
@@ -795,7 +810,7 @@ if __name__=="__main__":
         {"innoise" : [1.], # Stddev on incomming messages
         "outnoise" : [1.], # Stddev on outgoing messages
         "num_environment" : [6], # Num univariate environment nodes
-        "num_agents" : [20], # Number of Agents
+        "num_agents" : [40,80], # Number of Agents
         "num_managers" : ["AllButOne"], # Number of Agents that do not contribute
         "fanout" : [1], # Distinct messages an agent can say
         "envnoise": [1], # Stddev of environment state
@@ -811,7 +826,7 @@ if __name__=="__main__":
         'decay':[.002],
         "description" : [Description],
         'network_update_method':['pruning'],#'pruning',None
-        "L1_norm":[0.,.1]}
+        "L1_norm":[.1]}
     ]
 
     parameters_temp = list(ParameterGrid(parameters_for_grid))

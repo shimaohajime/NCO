@@ -172,9 +172,9 @@ if __name__=="__main__":
     n_param = 2
     
     #dirname = 'result_October15_1345/'
-    dirname = 'result_October15_175820Agent_Pruning_Long/'
+    dirname = 'result_October16_1501_PruningStartFromBottom/'
     
-    i_trial = 1
+    i_trial = 0
     i_setting = 1
     
     
@@ -183,8 +183,7 @@ if __name__=="__main__":
     filename_setting = "Setting"+str(i_setting)+'_'
 
     filename = dirname+filename_setting+filname_trial
-        
-    
+            
     params = pickle.load(open(filename+"parameters.pickle","rb") )
 
     welfare_final_iterations = pickle.load(open(dirname+filename_setting+"welfare_final_iterations.pickle","rb") )
