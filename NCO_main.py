@@ -791,7 +791,7 @@ def getScriptPath():
 if __name__=="__main__":
     
     #------------------
-    Description = 'Pruning_EvenLarger'
+    Description = 'NoPruning_to_MeasureTime'
     #------------------
     
     
@@ -821,7 +821,7 @@ if __name__=="__main__":
         'dropout_rate':[.0],
         'decay':[.002],
         "description" : [Description],
-        'network_update_method':['pruning'],#'pruning',None
+        'network_update_method':[None],#'pruning',None
         "L1_norm":[.1]}
     ]
 

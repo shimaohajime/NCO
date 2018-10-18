@@ -172,10 +172,10 @@ if __name__=="__main__":
     n_param = 2
     
     #dirname = 'result_October15_1345/'
-    dirname = 'result_October16_1501_PruningStartFromBottom/'
+    dirname = 'result_October17_1104_Pruning_EvenLarger/'
     
     i_trial = 0
-    i_setting = 1
+    i_setting = 0
     
     
     filname_trial = "trial"+str(i_trial)+'_'
@@ -197,11 +197,11 @@ if __name__=="__main__":
     i_trial_worst = np.argmax(welfare_final_iterations)
     
 
-    out_param_hd = pickle.load(open(filename+"out_params_hd_final.pickle","rb") )
-    action_param_hd = pickle.load( open(filename+"action_params_hd_final.pickle","rb")  )
+    #out_param_hd = pickle.load(open(filename+"out_params_hd_final.pickle","rb") )
+    #action_param_hd = pickle.load( open(filename+"action_params_hd_final.pickle","rb")  )
     training_res_seq = pickle.load(open(filename+"training_res_seq.pickle","rb") )
     task_loss_seq = pickle.load(open(filename+"task_loss_seq.pickle","rb") )
-    task_loss_hd_seq = pickle.load(open(filename+"task_loss_hd_seq.pickle","rb") )
+    #task_loss_hd_seq = pickle.load(open(filename+"task_loss_hd_seq.pickle","rb") )
 
     out_param = pickle.load(open(filename+"out_params_final.pickle","rb") )
     action_param = pickle.load( open(filename+"action_params_final.pickle","rb")  )
@@ -216,7 +216,7 @@ if __name__=="__main__":
     
 
 
-    result = NCO_result(params,out_param_hd,action_param_hd,training_res_seq,task_loss_seq,task_loss_hd_seq,lr_seq,filename=filename)
+    result = NCO_result(params,out_param,action_param,training_res_seq,task_loss_seq,task_loss_seq,lr_seq,filename=filename)
 
     result.graph_across_epoch(result.task_loss_seq,ylabel='Task Loss')
 
