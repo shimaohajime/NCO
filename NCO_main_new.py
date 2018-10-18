@@ -210,10 +210,10 @@ class Organization(object):
                 lr_decay = lr_decay + self.decay
                 
             if i%100==0:
-                weight_on_cost_seq.append(w)
+                #weight_on_cost_seq.append(w)
                 training_res_seq.append(u0)
                 #Get the strategy under hard-dunbar
-                task_loss_seq.append(u_t0)
+                #task_loss_seq.append(u_t0)
 
                 lr_seq.append(lr)                
 
