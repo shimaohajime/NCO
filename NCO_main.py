@@ -76,29 +76,27 @@ class Agent(object):
     def create_out_matrix(self, indim):
         self.indim = indim
         if self.initializer_type is "zeros":
-            init_out_weights = tf.constant(0.0,shape=[indim,self.fanout],dtype=tf.float64)
-            init_action_weights = tf.constant(0.0,shape=[indim,1],dtype=tf.float64)
+            init_out_weights = tf.constant(0.0,shape=[indim,self.fanout],dtype=tf.float32)
+            init_action_weights = tf.constant(0.0,shape=[indim,1],dtype=tf.float32)
         if self.initializer_type is "normal":
-            init_out_weights = tf.constant(np.random.randn(indim,self.fanout),dtype=tf.float64)
-            init_action_weights = tf.constant( np.random.randn(indim,1), dtype=tf.float64 )            
+            init_out_weights = tf.constant(np.random.randn(indim,self.fanout),dtype=tf.float32)
+            init_action_weights = tf.constant( np.random.randn(indim,1), dtype=tf.float32 )            
 
         with tf.name_scope("Agents_Params"):
-            self.out_weights = tf.get_variable(dtype=tf.float64, name=str(self.num) + "msg" +str(self.id), initializer=init_out_weights)
-            self.action_weights = tf.get_variable(dtype=tf.float64, name=str(self.num) + "act" +str(self.id), initializer=init_action_weights)
-            tf.summary.tensor_summary("Agent_out_weights",self.out_weights)
-            tf.summary.tensor_summary("Agent_action_weights",self.action_weights)
+            self.out_weights = tf.get_variable(dtype=tf.float32, name=str(self.num) + "msg" +str(self.id), initializer=init_out_weights)
+            self.action_weights = tf.get_variable(dtype=tf.float32, name=str(self.num) + "act" +str(self.id), initializer=init_action_weights)
 
             #For setting weak link to be exact zero
-            self.out_weights_hard_dunbar = tf.get_variable(dtype=tf.float64, name=str(self.num) + "msg_hardbunbar" +str(self.id), initializer=init_out_weights)
-            self.action_weights_hard_dunbar = tf.get_variable(dtype=tf.float64, name=str(self.num) + "act_hardbunbar" +str(self.id), initializer=init_action_weights)
+            self.out_weights_hard_dunbar = tf.get_variable(dtype=tf.float32, name=str(self.num) + "msg_hardbunbar" +str(self.id), initializer=init_out_weights)
+            self.action_weights_hard_dunbar = tf.get_variable(dtype=tf.float32, name=str(self.num) + "act_hardbunbar" +str(self.id), initializer=init_action_weights)
 
         #Initialize with only Dunbar weights to be nonzero:
         '''
         init_out_weights = np.zeros([indim, self.fanout])
         init_out_weights[0:self.dunbar, :]= np.random.randn(self.dunbar,self.fanout)
         init_out_weights = tf.constant(init_out_weights)
-        self.out_weights = tf.get_variable(dtype=tf.float64, name=str(self.num) + "msg" +str(self.id), initializer=init_out_weights) #, shape=[indim, self.fanout]
-        self.action_weights = tf.get_variable(dtype=tf.float64, name=str(self.num) + "action" +str(self.id), shape=[indim,1])
+        self.out_weights = tf.get_variable(dtype=tf.float32, name=str(self.num) + "msg" +str(self.id), initializer=init_out_weights) #, shape=[indim, self.fanout]
+        self.action_weights = tf.get_variable(dtype=tf.float32, name=str(self.num) + "action" +str(self.id), shape=[indim,1])
         '''
 
     def set_output(self,output):
@@ -130,7 +128,7 @@ class Environment():
             right = self.environment[:,int(self.num_environment/2):]
             lmod = np.mod(np.sum(left,axis=1),2)
             rmod = np.mod(np.sum(right,axis=1),2)
-            self.env_pattern = (lmod==rmod).astype(np.float64).reshape([-1,1])
+            self.env_pattern = (lmod==rmod).astype(np.float32).reshape([-1,1])
 
 
 
@@ -171,17 +169,17 @@ class Organization(object):
         self.env_pattern_input = env_pattern_input
         with tf.name_scope("Environment"):
             if env_pattern_input is None:
-                self.environment = tf.random_normal([self.batchsize, num_environment], mean=0.0, stddev=1.0, dtype=tf.float64)
-                zero = tf.convert_to_tensor(0.0, tf.float64)
+                self.environment = tf.random_normal([self.batchsize, num_environment], mean=0.0, stddev=1.0, dtype=tf.float32)
+                zero = tf.convert_to_tensor(0.0, tf.float32)
                 greater = tf.greater(self.environment, zero, name="Organization_greater")
                 self.environment = tf.where(greater, tf.ones_like(self.environment), tf.zeros_like(self.environment), name="where_env")
             else:
-                self.environment = tf.placeholder(tf.float64,shape=[self.batchsize,self.num_environment])
-                self.env_pattern= tf.placeholder(tf.float64,shape=[self.batchsize,1])
+                self.environment = tf.placeholder(tf.float32,shape=[self.batchsize,self.num_environment])
+                self.env_pattern= tf.placeholder(tf.float32,shape=[self.batchsize,1])
         with tf.name_scope('Network_prespecified'):
             #num_environment+num_agents times num_agents matrix of binary
             #Includes environment, but not bias
-            self.network_prespecified = tf.placeholder(tf.float64, shape=[self.num_environment+self.num_agents,self.num_agents])
+            self.network_prespecified = tf.placeholder(tf.float32, shape=[self.num_environment+self.num_agents,self.num_agents])
             if network_prespecified_input is None: #all the edges are possible
                 temp = np.zeros([self.num_environment+self.num_agents,self.num_agents])
                 temp[np.triu_indices_from(temp,k=-self.num_environment)] = 1.
@@ -198,10 +196,10 @@ class Organization(object):
         self.L1_norm = L1_norm
 
         if weight_update is False:
-            self.weight_on_cost = tf.constant(weight_on_cost,dtype=tf.float64) #the weight on the listening cost in loss function
+            self.weight_on_cost = tf.constant(weight_on_cost,dtype=tf.float32) #the weight on the listening cost in loss function
             self.weight_on_cost_val = weight_on_cost
         elif weight_update is True:
-            self.weight_on_cost = tf.get_variable(name="weight_on_cost",dtype=tf.float64,initializer=tf.constant(weight_on_cost,dtype=tf.float64),trainable=False  )
+            self.weight_on_cost = tf.get_variable(name="weight_on_cost",dtype=tf.float32,initializer=tf.constant(weight_on_cost,dtype=tf.float32),trainable=False  )
             self.weight_on_cost_val = weight_on_cost
             self.assign_weight = tf.assign(self.weight_on_cost, self.weight_on_cost_val)
         self.weight_update = weight_update
@@ -216,12 +214,9 @@ class Organization(object):
             self.objective_L1 = self._make_loss_L1()
             # self.objective = self.loss()
             self.objective = self.weight_on_cost * self.objective_cost + (1-self.weight_on_cost) * self.objective_task + self.objective_L1
-            tf.summary.scalar("Objective",self.objective)
-            tf.summary.scalar("Objective_task",self.objective_task)
-            tf.summary.scalar("Objective_cost",self.objective_cost)
 
         with tf.name_scope("Optimizer"):
-            self.learning_rate = tf.placeholder(tf.float64)
+            self.learning_rate = tf.placeholder(tf.float32)
             #self.optimize =tf.train.AdadeltaOptimizer(self.learning_rate, rho=.9).minimize(self.objective)
             self.optimize =tf.train.AdamOptimizer(self.learning_rate).minimize(self.objective)
             self.start_learning_rate = .1#15.
@@ -271,7 +266,7 @@ class Organization(object):
         one_above_bottom = top_k[self.dunbar_number-1]
         #Under construction from here
         r = tf.random_uniform(shape=[self.batchsize,indata_dim])
-        zeros = tf.constant(0.0,shape=[self.batchsize,indata_dim], dtype=tf.float64)
+        zeros = tf.constant(0.0,shape=[self.batchsize,indata_dim], dtype=tf.float32)
         bottom_tile = tf.tile([bottom[0]], [self.batchsize*indata_dim]  )
         bottom_mat = tf.reshape(bottom_tile , [self.batchsize,indata_dim]  )
         weights_tile = tf.tile( tf.reshape(weights,[-1]), [self.batchsize])
@@ -299,7 +294,7 @@ class Organization(object):
 
         for i,a in enumerate(self.agents):
             with tf.name_scope("Env_Noise"):
-                envnoise = tf.random_normal([self.batchsize, self.num_environment], stddev=self.envobsnoise, dtype=tf.float64)
+                envnoise = tf.random_normal([self.batchsize, self.num_environment], stddev=self.envobsnoise, dtype=tf.float32)
 
             with tf.name_scope("Indata"):
                 inenv = self.environment
@@ -321,7 +316,7 @@ class Organization(object):
                     one_above_bottom = top_k[self.dunbar_number-1]
                     #Under construction from here
                     r = tf.random_uniform(shape=[self.batchsize,indata_dim])
-                    zeros = tf.constant(0.0,shape=[self.batchsize,indata_dim], dtype=tf.float64)
+                    zeros = tf.constant(0.0,shape=[self.batchsize,indata_dim], dtype=tf.float32)
                     bottom_tile = tf.tile([bottom[0]], [self.batchsize*indata_dim]  )
                     bottom_mat = tf.reshape(bottom_tile , [self.batchsize,indata_dim]  )
                     weights_tile = tf.tile( tf.reshape(weights,[-1]), [self.batchsize])
@@ -330,22 +325,22 @@ class Organization(object):
                     indata = tf.where( tf.logical_and(tf.less_equal(weights_mat, bottom_mat), tf.less(r, self.dropout_rate)  ),  zeros, indata  )
                     '''
                 if self.agent_order is 'linear':
-                    biasedin = tf.concat([tf.constant(1.0, dtype=tf.float64, shape=[self.batchsize, 1]), indata], 1) #dim:(batchsize,dim_indata+1)
+                    biasedin = tf.concat([tf.constant(1.0, dtype=tf.float32, shape=[self.batchsize, 1]), indata], 1) #dim:(batchsize,dim_indata+1)
                 elif type(self.agent_order) is int:
                     indata_poly = self.create_poly(indata, self.agent_order)
-                    biasedin = tf.concat([tf.constant(1.0, dtype=tf.float64, shape=[self.batchsize, 1]), indata_poly], 1) #dim:(batchsize,dim_indata+1)
+                    biasedin = tf.concat([tf.constant(1.0, dtype=tf.float32, shape=[self.batchsize, 1]), indata_poly], 1) #dim:(batchsize,dim_indata+1)
                     
                     
             a.set_received_messages(biasedin)
 
             with tf.name_scope("Output"):
-                out_weights_inedge = a.out_weights * tf.concat([tf.constant(1.0,dtype=tf.float64,shape=[1,1]), a.inedge],axis=0)
+                out_weights_inedge = a.out_weights * tf.concat([tf.constant(1.0,dtype=tf.float32,shape=[1,1]), a.inedge],axis=0)
                 output = tf.sigmoid(tf.matmul(biasedin, out_weights_inedge))
                 self.dim_build_wave_output = self.sess.run(tf.shape(output))
             with tf.name_scope("Action"):
                 #For convergence, we do not calculate the loss from the action.
                 #Instead we use continuous loss function from sigmoid
-                action_weights_inedge = a.action_weights * tf.concat([tf.constant(1.0,dtype=tf.float64,shape=[1,1]), a.inedge],axis=0)
+                action_weights_inedge = a.action_weights * tf.concat([tf.constant(1.0,dtype=tf.float32,shape=[1,1]), a.inedge],axis=0)
                 state_action = tf.matmul(biasedin, action_weights_inedge)
             a.set_output(output)
             a.set_state_action(state_action)
@@ -386,10 +381,10 @@ class Organization(object):
         rightsum = tf.reshape( tf.reduce_sum(right, 1), shape=[self.batchsize,1] )
         lmod = tf.mod(leftsum, 2)
         rmod = tf.mod(rightsum, 2)
-        pattern = tf.cast(tf.equal(lmod, rmod), tf.float64)
+        pattern = tf.cast(tf.equal(lmod, rmod), tf.float32)
 
         #test with easiest task
-        #pattern = tf.constant(1., dtype=tf.float64,shape=[self.batchsize,1])
+        #pattern = tf.constant(1., dtype=tf.float32,shape=[self.batchsize,1])
 
         return pattern
 
@@ -462,7 +457,7 @@ class Organization(object):
                 cost =  bottom
 
             elif self.dunbar_function is "hard":
-                cost = tf.cast( tf.greater( bottom, cutoff ), dtype=tf.float64) * cost_violate
+                cost = tf.cast( tf.greater( bottom, cutoff ), dtype=tf.float32) * cost_violate
 
             elif self.dunbar_function is "quad_ratio":
                 #cost= tf.square( tf.divide(bottom,top) )
@@ -476,7 +471,7 @@ class Organization(object):
                 cost = tf.pow(tf.educe_sum(tf.pow(below_bottom/bottom, 4)),1/4)
                 
             elif self.dunbar_function is None:
-                cost = tf.constant(0., dtype=tf.float64)
+                cost = tf.constant(0., dtype=tf.float32)
 
             else:
                 print("Dunbar cost function type not specified")
@@ -539,8 +534,9 @@ class Organization(object):
 
             #Check performance with hard-dunbar (slow)
             if i%10000==0:
-                self.calc_performance_hard_dunbar()
-                task_loss_hd_seq.append(self.welfare_hard_dunbar)
+                pass
+                #self.calc_performance_hard_dunbar()
+                #task_loss_hd_seq.append(self.welfare_hard_dunbar)
 
             #Update network if pruning
             num_pruning = (self.num_agents+self.num_environment) - self.dunbar_number
@@ -591,20 +587,20 @@ class Organization(object):
             out_params.append( self.sess.run( a.out_weights ) )
             action_params.append( self.sess.run(a.action_weights) )
 
-            out_params_hd.append( self.sess.run( a.out_weights_hard_dunbar,feed_dict={self.environment:self.env_input,self.env_pattern:self.env_pattern_input,self.network_prespecified:self.network_prespecified_input} ) )
-            action_params_hd.append(self.sess.run(a.action_weights_hard_dunbar ,feed_dict={self.environment:self.env_input,self.env_pattern:self.env_pattern_input,self.network_prespecified:self.network_prespecified_input} ))
+            #out_params_hd.append( self.sess.run( a.out_weights_hard_dunbar,feed_dict={self.environment:self.env_input,self.env_pattern:self.env_pattern_input,self.network_prespecified:self.network_prespecified_input} ) )
+            #action_params_hd.append(self.sess.run(a.action_weights_hard_dunbar ,feed_dict={self.environment:self.env_input,self.env_pattern:self.env_pattern_input,self.network_prespecified:self.network_prespecified_input} ))
 
 
         #welfare = self.sess.run(self.objective,feed_dict={self.environment:self.env_input,self.env_pattern:self.env_pattern_input})
         welfare = u_t0
-        welfare_hard_dunbar = self.welfare_hard_dunbar
+        #welfare_hard_dunbar = self.welfare_hard_dunbar
         if( self.writer != None ):
             self.writer.close()
 
         #Sequence of the welfare
         self.training_res_seq = training_res_seq
         self.task_loss_seq = task_loss_seq
-        self.task_loss_hd_seq = task_loss_hd_seq
+        #self.task_loss_hd_seq = task_loss_hd_seq
         self.weight_on_cost_seq = weight_on_cost_seq
         self.lr_seq = lr_seq
 
@@ -612,9 +608,9 @@ class Organization(object):
         self.action_params_final = action_params
         self.welfare_final = welfare
 
-        self.out_params_hd_final = out_params_hd
-        self.action_params_hd_final = action_params_hd
-        self.welfare_hd_final = welfare_hard_dunbar
+        #self.out_params_hd_final = out_params_hd
+        #self.action_params_hd_final = action_params_hd
+        #self.welfare_hd_final = welfare_hard_dunbar
 
         return
     
@@ -686,7 +682,7 @@ class Organization(object):
             top = top_k[0]
             bottom = top_k[self.dunbar_number] #One that has to be small already
             one_above_bottom = top_k[self.dunbar_number-1]#One that is allowed to be large
-            zeros = tf.zeros_like(weights,dtype=tf.float64)
+            zeros = tf.zeros_like(weights,dtype=tf.float32)
 
             out_weights_hard_dunbar_nobias = tf.where( tf.greater(weights, bottom), a.out_weights[1:], zeros  )
             action_weights_hard_dunbar_nobias = tf.where( tf.greater(weights, bottom), a.action_weights[1:], zeros  )
@@ -710,16 +706,16 @@ class Organization(object):
             indata=inenv
             for msg in output_hard_dunbar_list:
                 indata = tf.concat([indata, msg], 1)
-            biasedin = tf.concat([tf.constant(1.0, dtype=tf.float64, shape=[self.batchsize, 1]), indata], 1)
+            biasedin = tf.concat([tf.constant(1.0, dtype=tf.float32, shape=[self.batchsize, 1]), indata], 1)
             
-            out_weights_hd_inedge = a.out_weights_hard_dunbar * tf.concat([tf.constant(1.0,dtype=tf.float64,shape=[1,1]), a.inedge],axis=0)
+            out_weights_hd_inedge = a.out_weights_hard_dunbar * tf.concat([tf.constant(1.0,dtype=tf.float32,shape=[1,1]), a.inedge],axis=0)
             
             output_hard_dunbar = tf.sigmoid(tf.matmul(biasedin, out_weights_hd_inedge))
 
             output_hard_dunbar_list.append(output_hard_dunbar)
 
             if a.id>=self.num_managers:
-                action_weights_hd_inedge = a.action_weights_hard_dunbar * tf.concat([tf.constant(1.0,dtype=tf.float64,shape=[1,1]), a.inedge],axis=0)
+                action_weights_hd_inedge = a.action_weights_hard_dunbar * tf.concat([tf.constant(1.0,dtype=tf.float32,shape=[1,1]), a.inedge],axis=0)
                 
                 state_action_hard_dunbar = tf.matmul(biasedin, action_weights_hd_inedge)
                 a_loss_hard_dunbar = tf.nn.sigmoid_cross_entropy_with_logits(labels=self.env_pattern,logits=state_action_hard_dunbar)
@@ -766,15 +762,15 @@ def runIteration(parameter,iter_train,iter_restart,filename,dirname,env_type='ma
             pickle.dump(parameter, open(dirname+filename_trial+"_parameters.pickle","wb"))
             pickle.dump(orgA.training_res_seq, open(dirname+filename_trial+"_training_res_seq.pickle","wb"))
             pickle.dump(orgA.task_loss_seq, open(dirname+filename_trial+"_task_loss_seq.pickle","wb"))
-            pickle.dump(orgA.task_loss_hd_seq, open(dirname+filename_trial+"_task_loss_hd_seq.pickle","wb"))
+            #pickle.dump(orgA.task_loss_hd_seq, open(dirname+filename_trial+"_task_loss_hd_seq.pickle","wb"))
     
             pickle.dump(orgA.weight_on_cost_seq, open(dirname+filename_trial+"_weight_on_cost_seq.pickle","wb"))
             pickle.dump(orgA.lr_seq, open(dirname+filename_trial+"_lr_seq.pickle","wb"))
     
             pickle.dump(orgA.out_params_final, open(dirname+filename_trial+"_out_params_final.pickle","wb"))
             pickle.dump(orgA.action_params_final, open(dirname+filename_trial+"_action_params_final.pickle","wb"))
-            pickle.dump(orgA.out_params_hd_final, open(dirname+filename_trial+"_out_params_hd_final.pickle","wb"))
-            pickle.dump(orgA.action_params_hd_final, open(dirname+filename_trial+"_action_params_hd_final.pickle","wb"))
+            #pickle.dump(orgA.out_params_hd_final, open(dirname+filename_trial+"_out_params_hd_final.pickle","wb"))
+            #pickle.dump(orgA.action_params_hd_final, open(dirname+filename_trial+"_action_params_hd_final.pickle","wb"))
         
 
 
