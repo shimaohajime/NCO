@@ -290,7 +290,7 @@ if __name__=="__main__":
                 parameters.append(parameters_temp[i])
 
 
-    iteration_train = 200000
+    iteration_train = 2000
     iteration_restart = 2
 
     exec_date = datetime.datetime.now(pytz.timezone('US/Mountain')).strftime('%B%d_%H%M')
