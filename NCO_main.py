@@ -28,6 +28,8 @@ from sklearn.model_selection import ParameterGrid
 import datetime
 import pytz
 
+from tensorflow.python.client import timeline
+
 def createFolder(directory):
     try:
         if not os.path.exists(directory):
@@ -116,7 +118,7 @@ class Agent(object):
         self.inedge = inedge #binary vector of input edge from prespecified network. Shape it to be [indim,1]
 
 class Environment():
-    def __init__(self,batchsize,num_environment,env_type='match_mod2'):
+    def __init__(self,batchsize,num_environment,env_network=None,env_weight=None,env_type='match_mod2'):
         self.batchsize = batchsize
         self.num_environment = num_environment
         self.env_type = env_type
@@ -129,6 +131,10 @@ class Environment():
             lmod = np.mod(np.sum(left,axis=1),2)
             rmod = np.mod(np.sum(right,axis=1),2)
             self.env_pattern = (lmod==rmod).astype(np.float32).reshape([-1,1])
+            
+        if self.env_type is 'gen_from_network':
+            self.environment = np.random.randint(2,size = [self.batchsize, self.num_environment])
+            
 
 
 
@@ -275,7 +281,8 @@ class Organization(object):
         indata_new = tf.where( tf.logical_and(tf.less_equal(weights_mat, bottom_mat), tf.less(r, self.dropout_rate)  ),  zeros, indata  )
         return indata_new
 
-        
+                
+    
     
     def create_poly(self,indata, order):
         indata_poly = indata
@@ -508,7 +515,16 @@ class Organization(object):
             # Run training, and adjust learning rate if it's an Optimizer that
             # works with decaying learning rates (some don't)
             lr = float(lrinit) / float(1. + lr_decay) # Learn less over time
-            _,u0,u_t0,u_c0,w = self.sess.run([self.optimize,self.objective,self.objective_task,self.objective_cost,self.weight_on_cost], feed_dict={self.learning_rate:lr,self.environment:self.env_input,self.env_pattern:self.env_pattern_input,self.network_prespecified:self.network_prespecified_input})
+            
+            options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
+            run_metadata = tf.RunMetadata()
+            
+            _,u0,u_t0,u_c0,w = self.sess.run([self.optimize,self.objective,self.objective_task,self.objective_cost,self.weight_on_cost], feed_dict={self.learning_rate:lr,self.environment:self.env_input,self.env_pattern:self.env_pattern_input,self.network_prespecified:self.network_prespecified_input},options=options,run_metadata=run_metadata)
+            
+            fetched_timeline = timeline.Timeline(run_metadata.step_stats)
+            chrome_trace = fetched_timeline.generate_chrome_trace_format()
+            with open('timeline_02_step_%d.json' % i, 'w') as f:
+                f.write(chrome_trace)
             #Learning Rate Update
             if self.decay != None:
                 lr_decay = lr_decay + self.decay
@@ -806,7 +822,7 @@ if __name__=="__main__":
         {"innoise" : [1.], # Stddev on incomming messages
         "outnoise" : [1.], # Stddev on outgoing messages
         "num_environment" : [6], # Num univariate environment nodes
-        "num_agents" : [40,80], # Number of Agents
+        "num_agents" : [20], # Number of Agents
         "num_managers" : ["AllButOne"], # Number of Agents that do not contribute
         "fanout" : [1], # Distinct messages an agent can say
         "envnoise": [1], # Stddev of environment state
@@ -814,7 +830,7 @@ if __name__=="__main__":
         "batchsize" : [1000],#200,#, # Training Batch Size
         "weight_on_cost":[0.0],
         "weight_update":[False],
-        "dunbar_number":[2,4],
+        "dunbar_number":[2],
         "dunbar_function":[None],  #"sigmoid_ratio","sigmoid_kth","L4"
         "initializer_type":["normal"],
         "dropout_type":[None],#,'AllIn'
@@ -851,8 +867,8 @@ if __name__=="__main__":
                 parameters.append(parameters_temp[i])
 
 
-    iteration_train = 200000
-    iteration_restart = 2
+    iteration_train = 400
+    iteration_restart = 1
 
     exec_date = datetime.datetime.now(pytz.timezone('US/Mountain')).strftime('%B%d_%H%M')
 
@@ -866,7 +882,7 @@ if __name__=="__main__":
         print('********************'+'Setting'+str(i)+'********************')
         filename = '/Setting'+str(i)
         p = parameters[i]
-        orgA = runIteration(p, iteration_train, iteration_restart,filename,dirname_abs,verbose=False)
+        orgA = runIteration(p, iteration_train, iteration_restart,filename,dirname_abs,verbose=True)
 
         '''
         # NOTE: We run all simulations on background processes.
