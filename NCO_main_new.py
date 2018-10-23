@@ -147,8 +147,18 @@ class Organization(object):
         #Array version.
         # out_weights is now (env+manager+1, manager) big matrix that stack the weights of all the agents
         # action weights is (env+manager+1, actor) big matrix
-        self.out_indim_max = self.num_environment+self.num_managers+1 #+1 for bias
-        self.action_indim_max = self.num_environment+self.num_managers+1 #+1 for bias
+        if self.agent_order is 'linear':
+            self.out_indim_max = self.num_environment+self.num_managers+1 #+1 for bias
+            self.action_indim_max = self.num_environment+self.num_managers+1 #+1 for bias
+        elif type(self.agent_order) is int:
+            out_indim_list = np.zeros(self.num_managers)
+            
+            for i in enumerate(self.num_agents):
+                inedge = self.network_prespecified[:,i]
+                num_in = np.sum(inedge)
+                indim = np.sum( comb( num_in, np.arange(1,num_in+1)  ) ).astype(int) #excluding bias
+                indim+1
+
 
         if self.initializer_type is "zeros":
             init_out_weights = tf.constant(0.0,shape=[self.out_indim_max,self.num_managers],dtype=tf.float32)

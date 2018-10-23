@@ -122,6 +122,10 @@ class Environment():
         self.batchsize = batchsize
         self.num_environment = num_environment
         self.env_type = env_type
+        if env_type == 'gen_from_network':
+            self.env_network = env_network # (num_env+num_agents,num_agents) matrix
+            self.env_weight=env_weight # (1+num_env+num_agents,num_agents) matrix. +1 for bias
+            self.num_agents = self.env_network.shape[1]
 
     def create_env(self):
         if self.env_type is 'match_mod2':
@@ -134,6 +138,19 @@ class Environment():
             
         if self.env_type is 'gen_from_network':
             self.environment = np.random.randint(2,size = [self.batchsize, self.num_environment])
+            if self.env_weight is None:
+                self.env_weight = np.random.randn(1+self.num_environment+self.num_agents,self.num_agents)
+            ones = np.ones([self.batchsize,1])
+            zeros = np.zeros([self.batchsize,self.num_agents])
+            indata = np.concatenate((ones,self.environment,zeros),axis=1)
+            for i in range(self.num_agents):
+                network = np.concatenate( ([1.], self.env_network[:,i]))
+                w = (self.env_weight[:,i] * network).reshape([-1,1])
+                m = np.dot(indata,w)
+                indata[:,1+self.num_environment+i] = np.copy(m.flatten())
+            self.env_pattern = m
+            
+                
             
 
 
@@ -224,7 +241,8 @@ class Organization(object):
         with tf.name_scope("Optimizer"):
             self.learning_rate = tf.placeholder(tf.float32)
             #self.optimize =tf.train.AdadeltaOptimizer(self.learning_rate, rho=.9).minimize(self.objective)
-            self.optimize =tf.train.AdamOptimizer(self.learning_rate).minimize(self.objective)
+            #self.optimize =tf.train.AdamOptimizer(self.learning_rate).minimize(self.objective)
+            self.optimize =tf.train.GradientDescentOptimizer(self.learning_rate).minimize(self.objective)
             self.start_learning_rate = .1#15.
             self.decay = decay #None #.01
 
@@ -674,7 +692,6 @@ class Organization(object):
                 weights_min = np.min(weights_i[np.nonzero(weights_i)])
                 min_pos = np.where(weights_i==weights_min  )        
                 
-
                 new_inedge = np.copy(network_old[:,i])
                 if weights_numnonzero>self.dunbar_number:                                    
                     new_inedge[min_pos] = 0.                
