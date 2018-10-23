@@ -240,8 +240,8 @@ class Organization(object):
 
         with tf.name_scope("Optimizer"):
             self.learning_rate = tf.placeholder(tf.float32)
-            self.optimize =tf.train.AdadeltaOptimizer(self.learning_rate, rho=.9).minimize(self.objective)
-            #self.optimize =tf.train.AdamOptimizer(self.learning_rate).minimize(self.objective)
+            #self.optimize =tf.train.AdadeltaOptimizer(self.learning_rate, rho=.9).minimize(self.objective)
+            self.optimize =tf.train.AdamOptimizer(self.learning_rate).minimize(self.objective)
             #self.optimize =tf.train.GradientDescentOptimizer(self.learning_rate).minimize(self.objective)
             self.start_learning_rate = .1#15.
             self.decay = decay #None #.01
