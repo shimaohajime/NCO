@@ -218,7 +218,7 @@ class Organization(object):
             options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
             run_metadata = tf.RunMetadata()
 
-            _,u0,u_t0 = self.sess.run([self.optimize,self.objective,self.objective_task], feed_dict={self.learning_rate:lr,self.environment:self.env_input,self.env_pattern:self.env_pattern_input,self.network_prespecified:self.network_prespecified_input},options=options,run_metadata=run_metadata)
+            _,u0,u_t0 = self.sess.run([self.optimize,self.objective,self.objective_task], feed_dict={self.learning_rate:lr,self.environment:self.env_input,self.env_pattern:self.env_pattern_input,self.network_prespecified:self.network_prespecified_input},options=options,run_metadata=run_metadata,config=tf.ConfigProto(device_count={'GPU': 0}))
 
             #Learning Rate Update
             if self.decay != None:
