@@ -29,6 +29,7 @@ import multiprocessing
 from sklearn.model_selection import ParameterGrid
 import datetime
 import pytz
+from tensorflow.python.client import timeline
 
 def createFolder(directory):
     try:
@@ -214,12 +215,21 @@ class Organization(object):
         for i  in range(niters):
             lr = float(lrinit) / float(1. + lr_decay) # Learn less over time
             #_,u0,u_t0,u_c0,w = self.sess.run([self.optimize,self.objective,self.objective_task,self.objective_cost,self.weight_on_cost], feed_dict={self.learning_rate:lr,self.environment:self.env_input,self.env_pattern:self.env_pattern_input,self.network_prespecified:self.network_prespecified_input})
-            _,u0,u_t0 = self.sess.run([self.optimize,self.objective,self.objective_task], feed_dict={self.learning_rate:lr,self.environment:self.env_input,self.env_pattern:self.env_pattern_input,self.network_prespecified:self.network_prespecified_input})
+            options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
+            run_metadata = tf.RunMetadata()
+
+            _,u0,u_t0 = self.sess.run([self.optimize,self.objective,self.objective_task], feed_dict={self.learning_rate:lr,self.environment:self.env_input,self.env_pattern:self.env_pattern_input,self.network_prespecified:self.network_prespecified_input},options=options,run_metadata=run_metadata)
+
             #Learning Rate Update
             if self.decay != None:
                 lr_decay = lr_decay + self.decay
                 
             if i%100==0:
+                fetched_timeline = timeline.Timeline(run_metadata.step_stats)
+                chrome_trace = fetched_timeline.generate_chrome_trace_format()
+                with open('new_timeline_step_%d.json' % i, 'w') as f:
+                    f.write(chrome_trace)
+
                 #weight_on_cost_seq.append(w)
                 training_res_seq.append(u0)
                 #Get the strategy under hard-dunbar
@@ -300,7 +310,7 @@ if __name__=="__main__":
                 parameters.append(parameters_temp[i])
 
 
-    iteration_train = 200000
+    iteration_train = 400
     iteration_restart = 2
 
     exec_date = datetime.datetime.now(pytz.timezone('US/Mountain')).strftime('%B%d_%H%M')

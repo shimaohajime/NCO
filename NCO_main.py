@@ -520,7 +520,7 @@ class Organization(object):
 
         training_res_seq = []
         task_loss_seq = []
-        task_loss_hd_seq = []
+        #task_loss_hd_seq = []
         weight_on_cost_seq = []
         lr_seq = []
         
@@ -539,8 +539,6 @@ class Organization(object):
             
             _,u0,u_t0,u_c0,w = self.sess.run([self.optimize,self.objective,self.objective_task,self.objective_cost,self.weight_on_cost], feed_dict={self.learning_rate:lr,self.environment:self.env_input,self.env_pattern:self.env_pattern_input,self.network_prespecified:self.network_prespecified_input},options=options,run_metadata=run_metadata)
             
-            fetched_timeline = timeline.Timeline(run_metadata.step_stats)
-            chrome_trace = fetched_timeline.generate_chrome_trace_format()
             with open('timeline_02_step_%d.json' % i, 'w') as f:
                 f.write(chrome_trace)
             #Learning Rate Update
@@ -551,7 +549,12 @@ class Organization(object):
                 weight_on_cost_seq.append(w)
                 training_res_seq.append(u0)
                 #Get the strategy under hard-dunbar
+                
                 task_loss_seq.append(u_t0)
+                fetched_timeline = timeline.Timeline(run_metadata.step_stats)
+                chrome_trace = fetched_timeline.generate_chrome_trace_format()
+                with open('timeline_02_step_%d.json' % i, 'w') as f:
+                    f.write(chrome_trace)
                 
                 
                 #Weight on cost update
