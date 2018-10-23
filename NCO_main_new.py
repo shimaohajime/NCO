@@ -64,7 +64,8 @@ class Organization(object):
                      weight_on_cost=0.,weight_update=False,initializer_type='zeros' ,dunbar_number=2 ,dunbar_function='linear_kth' ,
                      randomSeed=False, decay=None, tensorboard_filename=None, **kwargs):
 
-        self.sess = tf.Session(config=tf.ConfigProto(device_count={'GPU': 0}))
+        self.sess = tf.Session()
+        #self.sess = tf.Session(config=tf.ConfigProto(device_count={'GPU': 0}))
 
 
         self.num_environment = num_environment
