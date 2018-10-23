@@ -270,7 +270,7 @@ if __name__=="__main__":
         "fanout" : [1], # Distinct messages an agent can say
         "envnoise": [1], # Stddev of environment state
         "envobsnoise" : [1], # Stddev on observing environment
-        "batchsize" : [1000],#200,#, # Training Batch Size
+        "batchsize" : [2000],#200,#, # Training Batch Size
         "weight_on_cost":[0.0],
         "weight_update":[False],
         "dunbar_number":[2],
