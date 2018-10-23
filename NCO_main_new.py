@@ -64,7 +64,7 @@ class Organization(object):
                      weight_on_cost=0.,weight_update=False,initializer_type='zeros' ,dunbar_number=2 ,dunbar_function='linear_kth' ,
                      randomSeed=False, decay=None, tensorboard_filename=None, **kwargs):
 
-        self.sess = tf.Session()
+        self.sess = tf.Session(config=tf.ConfigProto(device_count={'GPU': 0}))
 
 
         self.num_environment = num_environment
@@ -218,7 +218,7 @@ class Organization(object):
             options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
             run_metadata = tf.RunMetadata()
 
-            _,u0,u_t0 = self.sess.run([self.optimize,self.objective,self.objective_task], feed_dict={self.learning_rate:lr,self.environment:self.env_input,self.env_pattern:self.env_pattern_input,self.network_prespecified:self.network_prespecified_input},options=options,run_metadata=run_metadata,config=tf.ConfigProto(device_count={'GPU': 0}))
+            _,u0,u_t0 = self.sess.run([self.optimize,self.objective,self.objective_task], feed_dict={self.learning_rate:lr,self.environment:self.env_input,self.env_pattern:self.env_pattern_input,self.network_prespecified:self.network_prespecified_input},options=options,run_metadata=run_metadata)
 
             #Learning Rate Update
             if self.decay != None:
