@@ -660,7 +660,7 @@ if __name__=="__main__":
                 
             dup = False
             for p in parameters:
-                if parameters_temp[i]==p:
+                if parameters_temp[i] is p:
                     dup=True
             if dup is False:
                 parameters.append(parameters_temp[i])
@@ -677,13 +677,15 @@ if __name__=="__main__":
     dirname_abs = os.getcwd() + '/result_'+exec_date +'_' + Description
 
     for i in range(n_param):
+        
+        start_time_setting = time.time()
 
         filename = '/Setting'+str(i)
         j = 0
         filename_trial = filename + '_trial' + str(j)
 
 
-    
+   
         parameter = parameters[i]
         batchsize = parameter['batchsize']
         num_environment = parameter['num_environment']
@@ -725,6 +727,11 @@ if __name__=="__main__":
 
         pickle.dump(orgA.prediction_seq, open(dirname+filename_trial+"_prediction_seq.pickle","wb"))
         pickle.dump(orgA.action_state_seq, open(dirname+filename_trial+"_action_state_seq.pickle","wb"))
+
+
+        end_time_setting = time.time()
+        time_elapsed_setting = end_time_setting-start_time_setting
+        print('time for setting%i:%f '%(i,time_elapsed_setting) )
 
         
     end_time = time.time()
