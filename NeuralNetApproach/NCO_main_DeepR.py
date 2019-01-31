@@ -714,6 +714,7 @@ if __name__=="__main__":
 
 
         #--------------
+        print('-----------Saving Data---------')
         pickle.dump(parameter, open(dirname+filename_trial+"_parameters.pickle","wb"))
         pickle.dump(orgA.training_res_seq, open(dirname+filename_trial+"_training_res_seq.pickle","wb"))
         pickle.dump(orgA.task_loss_seq, open(dirname+filename_trial+"_task_loss_seq.pickle","wb"))
