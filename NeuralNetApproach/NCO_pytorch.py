@@ -17,6 +17,12 @@ import numpy as np
 import os
 from torch.autograd import Variable
 
+import time
+import datetime
+import pytz
+import pickle
+
+
 from NCO_functions import createFolder,Environment,gen_full_network
 
 def xavier_init(size):
@@ -37,7 +43,7 @@ dim_input_max = num_environment+num_manager
 batchsize = 64#64
 lr = 1e-2#1e-3
 L1_coeff = 0.0001#.5
-n_it = 100000
+n_it = 1000000
 
 
 message_unit = torch.sigmoid#nn.functional.relu
@@ -115,6 +121,8 @@ b_action_list = []
 action_loss_list=[]
 total_loss_list=[]
 error_rate_list=[]
+
+network_list = []
 
 
 network = torch.Tensor(network_full_np)
@@ -250,7 +258,7 @@ for it in range(n_it):
     
     #Print
     
-    if it%100==0:
+    if it%1000==0:
         #Printing
         print('Iter %i'%it)
         print('action loss: %.4f, L1 loss: %.4f, Total: %.4f'%(action_loss.data, L1_loss.data, total_loss.data))
@@ -267,11 +275,37 @@ for it in range(n_it):
         total_loss_list.append(total_loss.data)
         error_rate_list.append(error_rate.data)
         
+        network_list.append(network.data)
+        
         if error_rate<1/batchsize:
             print('Function learned!')
             break
+        
 
 
+Description = 'Test_DeepR'
+
+exec_date = datetime.datetime.now(pytz.timezone('US/Mountain')).strftime('%B%d_%H%M')
+
+dirname ='./result_'+exec_date +'_' + Description
+
+createFolder(dirname)
+
+filename_trial = '/test'
+
+
+pickle.dump(W_env_to_message_list, open(dirname+filename_trial+"_W_env_to_message_list.pickle","wb"))
+pickle.dump(W_env_to_action_list, open(dirname+filename_trial+"_W_env_to_action_list.pickle","wb"))
+pickle.dump(W_message_to_message_list, open(dirname+filename_trial+"_W_message_to_message_list.pickle","wb"))
+pickle.dump(W_message_to_action_list, open(dirname+filename_trial+"_W_message_to_action_list.pickle","wb"))
+pickle.dump(b_message_list, open(dirname+filename_trial+"_b_message_list.pickle","wb"))
+pickle.dump(b_action_list, open(dirname+filename_trial+"_b_action_list.pickle","wb"))
+
+pickle.dump(action_loss_list, open(dirname+filename_trial+"_action_loss_list.pickle","wb"))
+pickle.dump(total_loss_list, open(dirname+filename_trial+"_total_loss_list.pickle","wb"))
+pickle.dump(error_rate_list, open(dirname+filename_trial+"_error_rate_list.pickle","wb"))
+
+pickle.dump(network_list, open(dirname+filename_trial+"_network_list.pickle","wb"))
 
 
 
