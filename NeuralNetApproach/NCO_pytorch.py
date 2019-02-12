@@ -44,7 +44,7 @@ message_unit = torch.sigmoid#nn.functional.relu
 #message_unit = nn.functional.relu
 action_unit = torch.sigmoid
 
-flag_DeepR = False
+flag_DeepR = True
 DeepR_freq = 2000
 DeepR_T = 0.00001
 
@@ -225,12 +225,12 @@ for it in range(n_it):
             
             network = negative * network
             
-
+            '''
             W_env_to_message = W_env_to_message +torch.randn_like(W_env_to_message) * np.sqrt(2.*lr*DeepR_T)
             W_env_to_action = W_env_to_action +torch.randn_like(W_env_to_action) * np.sqrt(2.*lr*DeepR_T)
             W_message_to_message = W_message_to_message + torch.randn_like(W_message_to_message) * np.sqrt(2.*lr*DeepR_T)
             W_message_to_action = W_message_to_action + torch.randn_like(W_message_to_action) * np.sqrt(2.*lr*DeepR_T)
-            
+            '''
 
             
             for i in range(num_agent):
