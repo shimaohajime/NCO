@@ -50,9 +50,14 @@ message_unit = torch.sigmoid#nn.functional.relu
 #message_unit = nn.functional.relu
 action_unit = torch.sigmoid
 
-flag_DeepR = True
+flag_DeepR = False
 DeepR_freq = 2000
 DeepR_T = 0.00001
+
+flag_DiscreteChoice = False
+DiscreteChoice_lr = .0001
+DiscreteChoice_L1_coeff = 0.
+
 
 
 '''
@@ -126,6 +131,10 @@ network_list = []
 
 
 network = torch.Tensor(network_full_np)
+
+DiscreteChoice_alpha = Variable(torch.zeros_like(network), requires_grad=True)
+
+
 for it in range(n_it):
     message = torch.Tensor(torch.zeros([batchsize,num_manager]))
     action_state = torch.Tensor(torch.zeros([batchsize,num_actor]))
