@@ -42,7 +42,7 @@ dim_input_max = num_environment+num_manager
 
 batchsize = 64#64
 lr = 1e-2#1e-3
-L1_coeff = 0.0001#.5
+L1_coeff = 0.#0.0001#.5
 n_it = 1000000
 
 
@@ -54,8 +54,9 @@ flag_DeepR = False
 DeepR_freq = 2000
 DeepR_T = 0.00001
 
-flag_DiscreteChoice = False
-DiscreteChoice_lr = .0001
+flag_DiscreteChoice = True
+DiscreteChoice_freq = 20
+DiscreteChoice_lr = 1e-2
 DiscreteChoice_L1_coeff = 0.
 
 
@@ -105,9 +106,15 @@ network = Variable(torch.ones([dim_input_max,num_agent]), requires_grad=False)
 '''
 
 
+network = torch.Tensor(network_full_np)
+
+DiscreteChoice_alpha = Variable(torch.randn_like(network), requires_grad=True)
 
 
 params_to_optimize = [W_env_to_message,W_env_to_action,W_message_to_message,W_message_to_action,b_message,b_action]
+
+if flag_DiscreteChoice:
+    params_to_optimize.append(DiscreteChoice_alpha)
 
 solver = optim.Adam(params_to_optimize, lr=lr)
 #loss = nn.BCELoss(reduction='sum')
@@ -129,10 +136,10 @@ error_rate_list=[]
 
 network_list = []
 
+if flag_DiscreteChoice:
+    DiscreteChoice_alpha_list=[]
 
-network = torch.Tensor(network_full_np)
 
-DiscreteChoice_alpha = Variable(torch.zeros_like(network), requires_grad=True)
 
 
 for it in range(n_it):
@@ -146,13 +153,22 @@ for it in range(n_it):
     for i in range(num_manager):
         temp = b_message[i].repeat([batchsize, 1])
         #message[:,i] = ( message_unit(b_message[i].repeat([batchsize, 1]) + env_input @ (W_env_to_message[:,i] * network[:num_environment,i]).reshape([-1,1]) + message.clone() @ (W_message_to_message[:,i] * network[num_environment:,i]).reshape([-1,1])   ) ).flatten()
-        message[:,i] = ( message_unit( temp + env_input @ (W_env_to_message[:,i] * network[:num_environment,i]).reshape([-1,1]) + message.clone() @ (W_message_to_message[:,i] * network[num_environment:,i]).reshape([-1,1])   ) ).flatten()
-        
+        if not flag_DiscreteChoice:
+            message[:,i] = ( message_unit( temp + env_input @ (W_env_to_message[:,i] * network[:num_environment,i]).reshape([-1,1]) + message.clone() @ (W_message_to_message[:,i] * network[num_environment:,i]).reshape([-1,1])   ) ).flatten()
+        if flag_DiscreteChoice:
+            choice_prob_m = nn.functional.softmax(DiscreteChoice_alpha[:,i] + (network[:,i]-1.)*1000000  )
+            message[:,i] = ( message_unit( temp + env_input @ (W_env_to_message[:,i] * network[:num_environment,i] * choice_prob_m[:num_environment]).reshape([-1,1]) + message.clone() @ (W_message_to_message[:,i] * network[num_environment:,i] * choice_prob_m[num_environment:]).reshape([-1,1])   ) ).flatten()
+            
     #print(message[3,3])
         
-    for i in range(num_actor):
-        action_state[:,i] = (b_action[i].repeat([batchsize, 1]) + env_input @ (W_env_to_action[:,i] * network[:num_environment,num_manager+i]).reshape([-1,1]) + message.clone() @ (W_message_to_action[:,i] * network[num_environment:,num_manager+i]).reshape([-1,1]) ).flatten()  
-        action[:,i] = action_unit(action_state[:,i]) 
+    for j in range(num_actor):
+        if not flag_DiscreteChoice:        
+            action_state[:,j] = (b_action[j].repeat([batchsize, 1]) + env_input @ (W_env_to_action[:,j] * network[:num_environment,num_manager+j]).reshape([-1,1]) + message.clone() @ (W_message_to_action[:,j] * network[num_environment:,num_manager+j]).reshape([-1,1]) ).flatten()  
+        if flag_DiscreteChoice:
+            choice_prob_a = nn.functional.softmax(DiscreteChoice_alpha[:,num_manager+j] + (network[:,num_manager+j]-1.)*1000000  )
+            action_state[:,j] = (b_action[j].repeat([batchsize, 1]) + env_input @ (W_env_to_action[:,j] * network[:num_environment,num_manager+j] * choice_prob_a[:num_environment]).reshape([-1,1]) + message.clone() @ (W_message_to_action[:,j] * network[num_environment:,num_manager+j] * choice_prob_a[num_environment:]).reshape([-1,1]) ).flatten()  
+            
+        action[:,j] = action_unit(action_state[:,j]) 
         
         
     #action_loss = torch.nn.CrossEntropyLoss(action, env_output, reduction='sum')
@@ -161,6 +177,9 @@ for it in range(n_it):
     L1_loss = torch.sum( torch.abs(W_env_to_message)) + torch.sum(torch.abs(W_env_to_action) )+torch.sum(torch.abs(W_message_to_message) )+ torch.sum(torch.abs(W_message_to_action) )#+ torch.sum(torch.abs(b_message)+torch.abs(b_action) ) 
     
     total_loss = action_loss+L1_loss*L1_coeff
+    if flag_DiscreteChoice:
+        L1_alpha = torch.sum(torch.abs(DiscreteChoice_alpha) )
+        total_loss = total_loss+L1_alpha*DiscreteChoice_L1_coeff
 
      # Backward
     total_loss.backward()
@@ -206,6 +225,7 @@ for it in range(n_it):
             W_env_to_action = torch.where(W_env_to_action>0,W_env_to_action,torch.zeros_like(W_env_to_action))
             W_message_to_action =torch.where(W_message_to_action>0,W_message_to_action,torch.zeros_like(W_message_to_action))
 
+            
 
         W_env_to_message.requires_grad = True
         W_env_to_action.requires_grad = True
@@ -213,6 +233,7 @@ for it in range(n_it):
         W_message_to_action.requires_grad = True
         b_message.requires_grad = True
         b_action.requires_grad = True
+
 
     # Housekeeping
     for p in params_to_optimize:
@@ -231,6 +252,18 @@ for it in range(n_it):
     
     #print('W_env_to_message[0,0]:', W_env_to_message[0,0])
     #print('W_env_to_message.grad[0,0]:', W_env_to_message.grad[0,0])
+    
+    #Darts discrete choice
+    if flag_DiscreteChoice:
+        if it%DiscreteChoice_freq==0:
+            #print('****************Updating alpha*********************')
+            with torch.no_grad():            
+                DiscreteChoice_alpha = DiscreteChoice_alpha -DiscreteChoice_lr * DiscreteChoice_alpha.grad
+                DiscreteChoice_alpha.requires_grad = True
+            #print('alpha mean:'+str( torch.mean(DiscreteChoice_alpha.data) ))
+            #print('alpha var:'+str( torch.var(DiscreteChoice_alpha.data) ))
+            
+    
     
     #DeepR
     if flag_DeepR:
@@ -286,10 +319,23 @@ for it in range(n_it):
         
         network_list.append(network.data)
         
+        if flag_DiscreteChoice:
+            DiscreteChoice_alpha_list.append(DiscreteChoice_alpha)
+
+        
         if error_rate<1/batchsize:
             print('Function learned!')
             break
         
+
+
+def DiscreteChoice_Test_Performance(DiscreteChoice_alpha,dunbar_number):
+    network = torch.zeros([num_environment+num_manager,num_agent])
+    for i in range(num_agent):        
+        alpha_i = DiscreteChoice_alpha[:,i]
+        network[torch.topk(alpha_i,k=dunbar_number)[1],1]=1.
+        
+    
 
 
 Description = 'Test_DeepR'
