@@ -339,7 +339,7 @@ class NCO_main():
                         fanin_i = torch.sum(torch.abs(network_i) )
                         if fanin_i<self.dunbar_number:
                             n_reactivate = int(self.dunbar_number-fanin_i)
-                            pos_inactive = np.where(self.network_i==0)
+                            pos_inactive = np.where(network_i==0)
                             pos_reactivate = np.random.choice(pos_inactive[0][(pos_inactive[0]<self.fanin_max_list[i])],[n_reactivate],replace=False)
                             network_i[pos_reactivate]=torch.Tensor(np.random.choice( [1.,-1.],len(pos_reactivate) ) )
                             self.network[:,i] = network_i
@@ -423,17 +423,17 @@ if __name__=="__main__":
     createFolder(dirname)
     
     parameters_for_grid = {#'num_agent':[10], 
-                           'num_manager':[9,15,24], 
+                           'num_manager':[9,24],#15, 
                            'num_environment':[6], 
                            'num_actor':[1],
-                           'dunbar_number':[2,4],
+                           'dunbar_number':[4],#2,
                             'lr':[.01], 
-                            'L1_coeff':[0.,.001], 
-                            'n_it':[10000],
+                            'L1_coeff':[.001],#0., 
+                            'n_it':[5000],#10000
                             'message_unit':[torch.sigmoid], 
                             'action_unit':[torch.sigmoid], 
-                            'flag_DeepR': [False, True], 
-                            'DeepR_freq' : [200], 
+                            'flag_DeepR': [True,False],#  
+                            'DeepR_freq' : [5], 
                             'DeepR_T' : [0.00001],
                             'flag_DiscreteChoice': [False], 
                             'flag_DiscreteChoice_Darts': [False], 
@@ -482,12 +482,14 @@ if __name__=="__main__":
                 
         
 
-    n_rep = 50            
+    n_rep = 50
     for param_i in range( len(parameters_list) ):
         org_parameters = parameters_list[param_i]
-        
+        final_action_loss_list = []
+        final_network_list = []   
+        final_error_list = []                 
         print('********************'+'Setting'+str(param_i)+'********************')
-
+        filename_setting = '/Param%i_final'%(param_i)
         
         for rep_i in range(n_rep):
             print('----Setting%i, rep%i-------'%(param_i,rep_i))
@@ -546,11 +548,18 @@ if __name__=="__main__":
             
             pickle.dump(org.message_list, open(dirname+filename_trial+"_message_list.pickle","wb"))
         
-            pickle.dump(org_parameters, open(dirname+filename_trial+"_org_parameters.pickle","wb"))
             
             org.fig_loss.savefig(dirname+filename_trial+"_loss_graph.png")
-                
+            
+            final_action_loss_list.append(org.action_loss_list[-1])
+            final_network_list.append(org.network_list[-1])
+            final_error_list.append(org.error_rate_list[-1])
+            
             end_time = time.time()
             time_elapsed = end_time-start_time
             print('time per rep: ',time_elapsed)
+        pickle.dump(org_parameters, open(dirname+filename_setting+"_org_parameters.pickle","wb"))
+        pickle.dump( final_action_loss_list, open(dirname+filename_setting+"_final_action_loss_list.pickle","wb") )
+        pickle.dump( final_network_list, open(dirname+filename_setting+"_final_network_list.pickle","wb") )
+        pickle.dump( final_error_list, open(dirname+filename_setting+"_final_error_list.pickle","wb") )
         
