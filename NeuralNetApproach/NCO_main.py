@@ -22,8 +22,9 @@ import pickle
 
 from matplotlib import pyplot as plt
 
+from sklearn.model_selection import ParameterGrid
 
-from NCO_functions import createFolder,Environment,gen_full_network,gen_constrained_network
+from NCO_functions import createFolder,Environment,gen_full_network,gen_constrained_network,draw_network
 
 def xavier_init(size):
     in_dim = size[0]
@@ -37,7 +38,7 @@ class NCO_main():
                  message_unit = torch.sigmoid, action_unit = torch.sigmoid, 
                  flag_DeepR = False, DeepR_freq = 2000, DeepR_T = 0.00001,
                  flag_DiscreteChoice = False, flag_DiscreteChoice_Darts = False, DiscreteChoice_freq = 10, DiscreteChoice_lr = 0.,DiscreteChoice_L1_coeff = 0.001,
-                 type_initial_network = 'ConstrainedRandom', flag_BatchNorm = True, env_type = 'gen_from_network',
+                 type_initial_network = 'ConstrainedRandom', flag_BatchNorm = True, env_type = 'match_mod2',width_seq=None
                  ):
         
         #Basic parameters
@@ -80,18 +81,22 @@ class NCO_main():
         
         
         #Generate network and environment
-        self.network_const_np = gen_constrained_network(num_environment,num_manager,num_agent,dunbar_number)
         self.network_const_env = gen_constrained_network(num_environment,num_manager,num_agent,dunbar_number)
         self.network_full_np = gen_full_network(num_environment,num_manager,num_agent)
         self.fanin_max_list = np.sum(self.network_full_np,axis=0).astype(np.int)
 
         if type_initial_network is 'ConstrainedRandom':
+            self.network_const_np = gen_constrained_network(num_environment,num_manager,num_agent,dunbar_number)
             self.network = torch.Tensor(np.abs(self.network_const_np) )
         elif type_initial_network is 'FullyConnected':
             self.network = torch.Tensor(np.abs(self.network_full_np) )
         elif type_initial_network is 'FullyConnected_NoDirectEnv':
             self.network = torch.Tensor(np.abs(self.network_full_np) )
-            self.network[:num_environment, num_manager:]=0
+            self.network[:num_environment, num_manager:]=0            
+        elif type_initial_network is 'layered_with_width':
+            self.network_const_np = gen_constrained_network(num_environment,num_manager,num_agent,dunbar_number, type_network='layered_with_width',width_seq=width_seq)            
+            self.network = torch.Tensor(np.abs(self.network_const_np) )
+            
             
         env_class = Environment(batchsize=None,num_environment=self.num_environment,num_agents=num_agent,num_manager=num_manager,num_actor=num_actor,env_type=env_type,input_type='all_comb',flag_normalize=False,env_network=self.network_const_env)
         env_class.create_env()
@@ -243,6 +248,8 @@ class NCO_main():
             if self.flag_DiscreteChoice or self.flag_DiscreteChoice_Darts:
                 self.L1_alpha = torch.sum(torch.abs(self.DiscreteChoice_alpha) )
                 self.total_loss = self.total_loss+self.L1_alpha*self.DiscreteChoice_L1_coeff
+                
+                
             self.total_loss.backward()
             self.error_rate = torch.mean(torch.abs((self.action.data>.5).float() - self.env_output ) )
             
@@ -367,8 +374,16 @@ class NCO_main():
                     print('w_ma:'+str(self.W_message_to_action.data.flatten()))
         
         
-                print(self.action)
+                print(self.action[:10])
                 #print(W_message_to_action_grad)
+
+                self.fig_loss = plt.figure()
+                plt.plot(np.arange(len(self.total_loss_list) ) ,self.total_loss_list)
+                plt.title('Loss'  )
+                plt.show()
+                plt.close()
+
+
                 if self.error_rate<1/self.batchsize:
                     print('Function learned!')
                     break
@@ -382,7 +397,7 @@ class NCO_main():
             if it%1000==0:
                 lf = torch.nn.BCELoss()
                 l = np.zeros([len(self.message_list),self.message.data.shape[1] ])
-                
+                '''
                 for i in range( len(self.message_list) ):
                     m = self.message_list[i]
                     for j in range( self.message.data.shape[1] ):
@@ -393,17 +408,13 @@ class NCO_main():
                     plt.title('%i-th message'%j  )
                     plt.show()
                     plt.close()
-             
+                '''
         
-                plt.plot(np.arange(len(self.total_loss_list) ) ,self.total_loss_list)
-                plt.title('Loss'  )
-                plt.show()
-                plt.close()
         
                 
                 
 if __name__=="__main__":
-    Description = 'Test_Class'
+    Description = 'Iterate_DeepR'
 
     exec_date = datetime.datetime.now(pytz.timezone('US/Mountain')).strftime('%B%d_%H%M')
     
@@ -411,27 +422,135 @@ if __name__=="__main__":
     
     createFolder(dirname)
     
-    filename_trial = '/test'
+    parameters_for_grid = {#'num_agent':[10], 
+                           'num_manager':[9,15,24], 
+                           'num_environment':[6], 
+                           'num_actor':[1],
+                           'dunbar_number':[2,4],
+                            'lr':[.01], 
+                            'L1_coeff':[0.,.001], 
+                            'n_it':[10000],
+                            'message_unit':[torch.sigmoid], 
+                            'action_unit':[torch.sigmoid], 
+                            'flag_DeepR': [False, True], 
+                            'DeepR_freq' : [200], 
+                            'DeepR_T' : [0.00001],
+                            'flag_DiscreteChoice': [False], 
+                            'flag_DiscreteChoice_Darts': [False], 
+                            'DiscreteChoice_freq': [10], 
+                            'DiscreteChoice_lr': [0.],
+                            'DiscreteChoice_L1_coeff': [0.001],
+                            'type_initial_network': ['ConstrainedRandom','layered_with_width'], 
+                            'flag_BatchNorm': [True], 
+                            'env_type': ['match_mod2'],
+                            #'width_seq':[[8,8,8]]
+            }
     
-    org = NCO_main()
-    org.func_Train()
     
+    parameters_temp = list(ParameterGrid(parameters_for_grid))
+    n_param_temp = len(parameters_temp)
+    parameters_list = []
     
-    
-    pickle.dump(org.W_env_to_message_list, open(dirname+filename_trial+"_W_env_to_message_list.pickle","wb"))
-    pickle.dump(org.W_env_to_action_list, open(dirname+filename_trial+"_W_env_to_action_list.pickle","wb"))
-    pickle.dump(org.W_message_to_message_list, open(dirname+filename_trial+"_W_message_to_message_list.pickle","wb"))
-    pickle.dump(org.W_message_to_action_list, open(dirname+filename_trial+"_W_message_to_action_list.pickle","wb"))
-    pickle.dump(org.b_message_list, open(dirname+filename_trial+"_b_message_list.pickle","wb"))
-    pickle.dump(org.b_action_list, open(dirname+filename_trial+"_b_action_list.pickle","wb"))
-    
-    pickle.dump(org.action_loss_list, open(dirname+filename_trial+"_action_loss_list.pickle","wb"))
-    pickle.dump(org.total_loss_list, open(dirname+filename_trial+"_total_loss_list.pickle","wb"))
-    pickle.dump(org.error_rate_list, open(dirname+filename_trial+"_error_rate_list.pickle","wb"))
-    
-    pickle.dump(org.network_list, open(dirname+filename_trial+"_network_list.pickle","wb"))
-    
-    pickle.dump(org.message_list, open(dirname+filename_trial+"_message_list.pickle","wb"))
-
+    for i in range(n_param_temp):
+        if parameters_temp[i]['dunbar_number']>parameters_temp[i]['num_environment']:
+            pass
+        parameters_temp[i]['num_agent'] = parameters_temp[i]['num_manager'] + parameters_temp[i]['num_actor']
+        if not parameters_temp[i]['flag_DeepR']:
+            parameters_temp[i]['DeepR_freq'] = None
+            parameters_temp[i]['DeepR_T'] = None
+        if parameters_temp[i]['flag_DeepR']:
+            if parameters_temp[i]['L1_coeff']==0.:
+                pass
+        if not (parameters_temp[i]['flag_DiscreteChoice'] or parameters_temp[i]['flag_DiscreteChoice_Darts'] ):
+            parameters_temp[i]['DiscreteChoice_freq'] = None
+            parameters_temp[i]['DiscreteChoice_lr'] = None
+            parameters_temp[i]['DiscreteChoice_L1_coeff'] = None
+        if parameters_temp[i]['type_initial_network'] is 'layered_with_width':
+            parameters_temp[i]['width_seq']  =[ int(parameters_temp[i]['num_manager']/3),int(parameters_temp[i]['num_manager']/3),int(parameters_temp[i]['num_manager']/3) ]
+            if np.mod(parameters_temp[i]['num_manager'], 3) == 1:
+                parameters_temp[i]['width_seq'][1] = parameters_temp[i]['width_seq'][1]+1
+            if np.mod(parameters_temp[i]['num_manager'], 3) == 2:
+                parameters_temp[i]['width_seq'][0] = parameters_temp[i]['width_seq'][0]+1
+                parameters_temp[i]['width_seq'][1] = parameters_temp[i]['width_seq'][1]+1
+        
+        dup = False
+        for p in parameters_list:
+            if parameters_temp[i]==p:
+                dup=True
+        if dup is False:
+            parameters_list.append(parameters_temp[i])
                 
+        
+
+    n_rep = 50            
+    for param_i in range( len(parameters_list) ):
+        org_parameters = parameters_list[param_i]
+        
+        print('********************'+'Setting'+str(param_i)+'********************')
+
+        
+        for rep_i in range(n_rep):
+            print('----Setting%i, rep%i-------'%(param_i,rep_i))
+            start_time = time.time()
+
+            filename_trial = '/Param%i_rep%i'%(param_i,rep_i)
+            '''
+            #Learns up to error rate: 0.0156 once in ten times.
+            #Other times get stuck at the usual local minima.
+            org = NCO_main(num_agent = 10, num_manager = 9, num_environment = 6, num_actor = 1, dunbar_number = 4, 
+                         lr = .01, L1_coeff = 0., n_it = 200000, 
+                         message_unit = torch.sigmoid, action_unit = torch.sigmoid, 
+                         flag_DeepR = False, DeepR_freq = 2000, DeepR_T = 0.00001,
+                         flag_DiscreteChoice = False, flag_DiscreteChoice_Darts = False, DiscreteChoice_freq = 10, DiscreteChoice_lr = 0.,DiscreteChoice_L1_coeff = 0.001,
+                         type_initial_network = 'layered_with_width', flag_BatchNorm = True, env_type = 'match_mod2',width_seq=[3,3,3]
+                         )
+            '''
+            '''
+            num_agent = 25
+            num_manager = 24
+            num_actor = 1
+            
+            org_parameters = {'num_agent':num_agent, 'num_manager':num_manager, 'num_environment':6, 'num_actor':num_actor,'dunbar_number':4,
+                              'lr':.01, 'L1_coeff':0., 'n_it':5000,
+                              'message_unit':torch.sigmoid, 'action_unit':torch.sigmoid, 
+                              'flag_DeepR': False, 'DeepR_freq' : 2000, 'DeepR_T' : 0.00001,
+                              'flag_DiscreteChoice': False, 'flag_DiscreteChoice_Darts': False, 'DiscreteChoice_freq': 10, 'DiscreteChoice_lr': 0.,'DiscreteChoice_L1_coeff': 0.001,
+                              'type_initial_network': 'layered_with_width', 'flag_BatchNorm': True, 'env_type': 'match_mod2','width_seq':[8,8,8]
+                    }
+            '''
+            
+            
+            
+            org = NCO_main(**org_parameters)
+            org.func_Train()
+        
+            draw_network(num_environment=org_parameters['num_environment'], num_manager=org_parameters['num_manager'], num_actor=org_parameters['num_actor'],num_agent=org_parameters['num_agent'], network=org.network, filename = dirname+filename_trial)
+        
+            
+            
+            #ConstrainedRandom
+            
+            
+            pickle.dump(org.W_env_to_message_list, open(dirname+filename_trial+"_W_env_to_message_list.pickle","wb"))
+            pickle.dump(org.W_env_to_action_list, open(dirname+filename_trial+"_W_env_to_action_list.pickle","wb"))
+            pickle.dump(org.W_message_to_message_list, open(dirname+filename_trial+"_W_message_to_message_list.pickle","wb"))
+            pickle.dump(org.W_message_to_action_list, open(dirname+filename_trial+"_W_message_to_action_list.pickle","wb"))
+            pickle.dump(org.b_message_list, open(dirname+filename_trial+"_b_message_list.pickle","wb"))
+            pickle.dump(org.b_action_list, open(dirname+filename_trial+"_b_action_list.pickle","wb"))
+            
+            pickle.dump(org.action_loss_list, open(dirname+filename_trial+"_action_loss_list.pickle","wb"))
+            pickle.dump(org.total_loss_list, open(dirname+filename_trial+"_total_loss_list.pickle","wb"))
+            pickle.dump(org.error_rate_list, open(dirname+filename_trial+"_error_rate_list.pickle","wb"))
+            
+            pickle.dump(org.network_list, open(dirname+filename_trial+"_network_list.pickle","wb"))
+            
+            pickle.dump(org.message_list, open(dirname+filename_trial+"_message_list.pickle","wb"))
+        
+            pickle.dump(org_parameters, open(dirname+filename_trial+"_org_parameters.pickle","wb"))
+            
+            org.fig_loss.savefig(dirname+filename_trial+"_loss_graph.png")
+                
+            end_time = time.time()
+            time_elapsed = end_time-start_time
+            print('time per rep: ',time_elapsed)
         
