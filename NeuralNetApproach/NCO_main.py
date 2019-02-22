@@ -37,6 +37,7 @@ class NCO_main():
                  lr = .01, L1_coeff = 0., n_it = 200000, 
                  message_unit = torch.sigmoid, action_unit = torch.sigmoid, 
                  flag_DeepR = False, DeepR_freq = 2000, DeepR_T = 0.00001,
+                 flag_pruning = False, pruning_freq = 100,
                  flag_DiscreteChoice = False, flag_DiscreteChoice_Darts = False, DiscreteChoice_freq = 10, DiscreteChoice_lr = 0.,DiscreteChoice_L1_coeff = 0.001,
                  type_initial_network = 'ConstrainedRandom', flag_BatchNorm = True, env_type = 'match_mod2',width_seq=None
                  ):
@@ -61,6 +62,10 @@ class NCO_main():
         self.flag_DeepR = flag_DeepR
         self.DeepR_freq = DeepR_freq
         self.DeepR_T = DeepR_T
+        
+        #Pruning
+        self.flag_pruning = flag_pruning
+        self.pruning_freq = pruning_freq
         
         #Discrete choice and Darts
         self.flag_DiscreteChoice = flag_DiscreteChoice
@@ -328,8 +333,8 @@ class NCO_main():
                     
             #DeepR rewiring network
             if self.flag_DeepR:
-                if it%self.DeepR_freq==0:
-                    print('****************Rewiring Network*********************')
+                if it%self.DeepR_freq==0 and it>0:
+                    #print('****************Rewiring Network*********************')
                     negative_m = torch.cat((self.W_env_to_message>0,self.W_message_to_message>0),dim=0).type(torch.FloatTensor) 
                     negative_a = torch.cat((self.W_env_to_action>0,self.W_message_to_action>0),dim=0).type(torch.FloatTensor) 
                     negative = torch.cat( (negative_m,negative_a),dim=1 )                    
@@ -343,6 +348,21 @@ class NCO_main():
                             pos_reactivate = np.random.choice(pos_inactive[0][(pos_inactive[0]<self.fanin_max_list[i])],[n_reactivate],replace=False)
                             network_i[pos_reactivate]=torch.Tensor(np.random.choice( [1.,-1.],len(pos_reactivate) ) )
                             self.network[:,i] = network_i
+                            
+            #Pruning network
+            if self.flag_pruning:
+                if it%self.pruning_freq==0 and it>0:
+                    for i in range(self.num_agent):
+                        network_i = self.network[:,i]
+                        fanin_i = torch.sum(torch.abs(network_i) )
+                        if fanin_i>self.dunbar_number: 
+                            n_inactivate = 1
+                            pos_active = np.where(network_i!=0)
+                            pos_inactivate = np.random.choice(pos_active[0][(pos_active[0]<self.fanin_max_list[i])],[n_inactivate],replace=False)
+                            network_i[pos_inactivate]=torch.zeros(len(pos_inactivate))
+                            
+                            
+                        
             
                     
             
@@ -428,13 +448,15 @@ if __name__=="__main__":
                            'num_actor':[1],
                            'dunbar_number':[4],#2,
                             'lr':[.01], 
-                            'L1_coeff':[.001],#0., 
-                            'n_it':[5000],#10000
-                            'message_unit':[torch.sigmoid], 
+                            'L1_coeff':[.01],#0., 
+                            'n_it':[10000],#10000
+                            'message_unit':[nn.functional.relu],#[torch.sigmoid], 
                             'action_unit':[torch.sigmoid], 
                             'flag_DeepR': [True,False],#  
                             'DeepR_freq' : [5], 
                             'DeepR_T' : [0.00001],
+                            'flag_pruning':[False],
+                            'pruning_freq':[100],
                             'flag_DiscreteChoice': [False], 
                             'flag_DiscreteChoice_Darts': [False], 
                             'DiscreteChoice_freq': [10], 
@@ -465,6 +487,11 @@ if __name__=="__main__":
             parameters_temp[i]['DiscreteChoice_freq'] = None
             parameters_temp[i]['DiscreteChoice_lr'] = None
             parameters_temp[i]['DiscreteChoice_L1_coeff'] = None
+            
+        if parameters_temp[i]['flag_pruning']:
+            parameters_temp[i]['type_initial_network'] = 'FullyConnected'
+            
+            
         if parameters_temp[i]['type_initial_network'] is 'layered_with_width':
             parameters_temp[i]['width_seq']  =[ int(parameters_temp[i]['num_manager']/3),int(parameters_temp[i]['num_manager']/3),int(parameters_temp[i]['num_manager']/3) ]
             if np.mod(parameters_temp[i]['num_manager'], 3) == 1:
