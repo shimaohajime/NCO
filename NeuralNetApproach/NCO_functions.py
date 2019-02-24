@@ -35,15 +35,19 @@ def gen_constrained_network(num_environment,num_managers,num_agents,dunbar_numbe
         flow_in = np.random.choice(np.arange(num_environment,n_in_i),dunbar_number, replace=False)
         init_network[flow_in, i+1] = np.random.choice([1,-1], len(flow_in))
         
-    if type_network is 'layered_with_width':
+    if type_network in ['layered_random','layered_full'] :
         
         in_lb=0
         in_ub=num_environment
         idx = 0
         for i in range(len(width_seq)):        
             possible_in = np.arange(in_lb,in_ub)
-            for j in range(width_seq[i]):    
-                pos_active =   np.random.choice(possible_in, np.min( (dunbar_number, len(possible_in)) ) , replace=False)
+            for j in range(width_seq[i]):
+                if type_network is 'layered_random':
+                    pos_active =   np.random.choice(possible_in, np.min( (dunbar_number, len(possible_in)) ) , replace=False)
+                elif type_network is 'layered_full':
+                    pos_active = possible_in
+                    
                 init_network[pos_active, idx+j  ] = 1
             in_lb = np.copy(in_ub)
             in_ub = in_ub+width_seq[i]

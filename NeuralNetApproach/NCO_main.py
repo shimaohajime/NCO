@@ -36,7 +36,7 @@ class NCO_main():
     def __init__(self, num_agent = 10, num_manager = 9, num_environment = 6, num_actor = 1, dunbar_number = 4, 
                  lr = .01, L1_coeff = 0., n_it = 200000, 
                  message_unit = torch.sigmoid, action_unit = torch.sigmoid, 
-                 flag_DeepR = False, DeepR_freq = 2000, DeepR_T = 0.00001,
+                 flag_DeepR = False, DeepR_freq = 2000, DeepR_T = 0.00001,DeepR_layered=False,
                  flag_pruning = False, pruning_freq = 100,
                  flag_DiscreteChoice = False, flag_DiscreteChoice_Darts = False, DiscreteChoice_freq = 10, DiscreteChoice_lr = 0.,DiscreteChoice_L1_coeff = 0.001,
                  type_initial_network = 'ConstrainedRandom', flag_BatchNorm = True, env_type = 'match_mod2',width_seq=None
@@ -62,6 +62,7 @@ class NCO_main():
         self.flag_DeepR = flag_DeepR
         self.DeepR_freq = DeepR_freq
         self.DeepR_T = DeepR_T
+        self.DeepR_layered = DeepR_layered
         
         #Pruning
         self.flag_pruning = flag_pruning
@@ -98,9 +99,16 @@ class NCO_main():
         elif type_initial_network is 'FullyConnected_NoDirectEnv':
             self.network = torch.Tensor(np.abs(self.network_full_np) )
             self.network[:num_environment, num_manager:]=0            
-        elif type_initial_network is 'layered_with_width':
-            self.network_const_np = gen_constrained_network(num_environment,num_manager,num_agent,dunbar_number, type_network='layered_with_width',width_seq=width_seq)            
+        elif type_initial_network is 'layered_random':
+            self.network_full_layered_np = gen_constrained_network(num_environment,num_manager,num_agent,dunbar_number, type_network='layered_full',width_seq=width_seq)            
+            self.network_full_layered = torch.Tensor(self.network_full_layered_np)
+            self.network_const_np = gen_constrained_network(num_environment,num_manager,num_agent,dunbar_number, type_network='layered_random',width_seq=width_seq)            
             self.network = torch.Tensor(np.abs(self.network_const_np) )
+        elif type_initial_network is 'layered_full':
+            self.network_full_layered_np = gen_constrained_network(num_environment,num_manager,num_agent,dunbar_number, type_network='layered_full',width_seq=width_seq)            
+            self.network_full_layered = torch.Tensor(self.network_full_layered_np)
+            self.network = torch.Tensor(np.abs(self.network_full_layered_np) )
+            
             
             
         env_class = Environment(batchsize=None,num_environment=self.num_environment,num_agents=num_agent,num_manager=num_manager,num_actor=num_actor,env_type=env_type,input_type='all_comb',flag_normalize=False,env_network=self.network_const_env)
@@ -343,10 +351,19 @@ class NCO_main():
                         network_i = self.network[:,i]
                         fanin_i = torch.sum(torch.abs(network_i) )
                         if fanin_i<self.dunbar_number:
+                            
                             n_reactivate = int(self.dunbar_number-fanin_i)
-                            pos_inactive = np.where(network_i==0)
-                            pos_reactivate = np.random.choice(pos_inactive[0][(pos_inactive[0]<self.fanin_max_list[i])],[n_reactivate],replace=False)
-                            network_i[pos_reactivate]=torch.Tensor(np.random.choice( [1.,-1.],len(pos_reactivate) ) )
+                            if self.DeepR_layered is False:                            
+                                pos_inactive = np.where(network_i==0)
+                                pos_reactivate = np.random.choice(pos_inactive[0][(pos_inactive[0]<self.fanin_max_list[i])],[n_reactivate],replace=False)
+                                network_i[pos_reactivate]=torch.Tensor(np.random.choice( [1.,-1.],len(pos_reactivate) ) )
+                            if self.DeepR_layered is True:
+                                pos_inactive = np.where( (network_i==0) * (self.network_full_layered[:,i]==1 ) )
+                                self.pos_inactive = pos_inactive
+                                if n_reactivate<=len(pos_inactive[0][(pos_inactive[0]<self.fanin_max_list[i])]):
+                                    pos_reactivate = np.random.choice(pos_inactive[0][(pos_inactive[0]<self.fanin_max_list[i])],[n_reactivate],replace=False)
+                                    network_i[pos_reactivate]=torch.Tensor(np.random.choice( [1.,-1.],len(pos_reactivate) ) )
+                                
                             self.network[:,i] = network_i
                             
             #Pruning network
@@ -361,12 +378,6 @@ class NCO_main():
                             pos_inactivate = np.random.choice(pos_active[0][(pos_active[0]<self.fanin_max_list[i])],[n_inactivate],replace=False)
                             network_i[pos_inactivate]=torch.zeros(len(pos_inactivate))
                             
-                            
-                        
-            
-                    
-            
-            
             if it%200==0:
                 #Printing
                 print('Iter %i'%it)
@@ -447,12 +458,13 @@ if __name__=="__main__":
                            'num_environment':[6], 
                            'num_actor':[1],
                            'dunbar_number':[4],#2,
-                            'lr':[.01], 
+                            'lr':[.001], 
                             'L1_coeff':[.01],#0., 
                             'n_it':[10000],#10000
                             'message_unit':[nn.functional.relu],#[torch.sigmoid], 
                             'action_unit':[torch.sigmoid], 
-                            'flag_DeepR': [True,False],#  
+                            'flag_DeepR': [True,False],#
+                            'DeepR_layered': [True,False],
                             'DeepR_freq' : [5], 
                             'DeepR_T' : [0.00001],
                             'flag_pruning':[False],
@@ -462,7 +474,7 @@ if __name__=="__main__":
                             'DiscreteChoice_freq': [10], 
                             'DiscreteChoice_lr': [0.],
                             'DiscreteChoice_L1_coeff': [0.001],
-                            'type_initial_network': ['ConstrainedRandom','layered_with_width'], 
+                            'type_initial_network': ['layered_full','layered_random'], #'layered_full' #'ConstrainedRandom',
                             'flag_BatchNorm': [True], 
                             'env_type': ['match_mod2'],
                             #'width_seq':[[8,8,8]]
@@ -483,6 +495,10 @@ if __name__=="__main__":
         if parameters_temp[i]['flag_DeepR']:
             if parameters_temp[i]['L1_coeff']==0.:
                 pass
+            if parameters_temp[i]['DeepR_layered']:
+                if parameters_temp[i]['type_initial_network'] in ['ConstrainedRandom', 'FullyConnected', 'FullyConnected_NoDirectEnv']:
+                    pass
+                
         if not (parameters_temp[i]['flag_DiscreteChoice'] or parameters_temp[i]['flag_DiscreteChoice_Darts'] ):
             parameters_temp[i]['DiscreteChoice_freq'] = None
             parameters_temp[i]['DiscreteChoice_lr'] = None
@@ -492,7 +508,7 @@ if __name__=="__main__":
             parameters_temp[i]['type_initial_network'] = 'FullyConnected'
             
             
-        if parameters_temp[i]['type_initial_network'] is 'layered_with_width':
+        if parameters_temp[i]['type_initial_network'] in ['layered_random','layered_full']:
             parameters_temp[i]['width_seq']  =[ int(parameters_temp[i]['num_manager']/3),int(parameters_temp[i]['num_manager']/3),int(parameters_temp[i]['num_manager']/3) ]
             if np.mod(parameters_temp[i]['num_manager'], 3) == 1:
                 parameters_temp[i]['width_seq'][1] = parameters_temp[i]['width_seq'][1]+1
@@ -590,3 +606,4 @@ if __name__=="__main__":
         pickle.dump( final_network_list, open(dirname+filename_setting+"_final_network_list.pickle","wb") )
         pickle.dump( final_error_list, open(dirname+filename_setting+"_final_error_list.pickle","wb") )
         
+    pickle.dump(parameters_list, open(dirname+filename_setting+"_parameters_list.pickle","wb"))
