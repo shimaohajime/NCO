@@ -26,6 +26,13 @@ from sklearn.model_selection import ParameterGrid
 
 from NCO_functions import createFolder,Environment,gen_full_network,gen_constrained_network,draw_network
 
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+# Assuming that we are on a CUDA machine, this should print a CUDA device:
+
+print(device)
+
+
 def xavier_init(size):
     in_dim = size[0]
     xavier_stddev = 1. / np.sqrt(in_dim / 2.)
