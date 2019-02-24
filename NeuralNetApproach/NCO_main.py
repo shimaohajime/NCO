@@ -39,7 +39,7 @@ def xavier_init(size):
     return Variable(torch.randn(*size) * xavier_stddev, requires_grad=True)
 
 
-class NCO_main():
+class NCO_main(nn.Module):
     def __init__(self, num_agent = 10, num_manager = 9, num_environment = 6, num_actor = 1, dunbar_number = 4, 
                  lr = .01, L1_coeff = 0., n_it = 200000, 
                  message_unit = torch.sigmoid, action_unit = torch.sigmoid, 
@@ -48,7 +48,7 @@ class NCO_main():
                  flag_DiscreteChoice = False, flag_DiscreteChoice_Darts = False, DiscreteChoice_freq = 10, DiscreteChoice_lr = 0.,DiscreteChoice_L1_coeff = 0.001,
                  type_initial_network = 'ConstrainedRandom', flag_BatchNorm = True, env_type = 'match_mod2',width_seq=None
                  ):
-        
+        super(NCO_main, self).__init__()
         #Basic parameters
         self.num_agent = num_agent
         self.num_manager = num_manager
@@ -574,6 +574,9 @@ if __name__=="__main__":
             
             
             org = NCO_main(**org_parameters)
+            
+            org.to(device)
+            
             org.func_Train()
         
             draw_network(num_environment=org_parameters['num_environment'], num_manager=org_parameters['num_manager'], num_actor=org_parameters['num_actor'],num_agent=org_parameters['num_agent'], network=org.network, filename = dirname+filename_trial)
