@@ -481,7 +481,7 @@ if __name__=="__main__":
                             'DiscreteChoice_freq': [10], 
                             'DiscreteChoice_lr': [0.],
                             'DiscreteChoice_L1_coeff': [0.001],
-                            'type_initial_network': ['layered_full','layered_random'], #'layered_full' #'ConstrainedRandom',
+                            'type_initial_network': ['FullyConnected','layered_full','layered_random'], #'layered_full' #'ConstrainedRandom',
                             'flag_BatchNorm': [True], 
                             'env_type': ['match_mod2'],
                             #'width_seq':[[8,8,8]]
@@ -494,17 +494,19 @@ if __name__=="__main__":
     
     for i in range(n_param_temp):
         if parameters_temp[i]['dunbar_number']>parameters_temp[i]['num_environment']:
-            pass
+            continue
         parameters_temp[i]['num_agent'] = parameters_temp[i]['num_manager'] + parameters_temp[i]['num_actor']
         if not parameters_temp[i]['flag_DeepR']:
             parameters_temp[i]['DeepR_freq'] = None
             parameters_temp[i]['DeepR_T'] = None
+            parameters_temp[i]['DeepR_layered'] = None
+            
         if parameters_temp[i]['flag_DeepR']:
             if parameters_temp[i]['L1_coeff']==0.:
-                pass
+                continue
             if parameters_temp[i]['DeepR_layered']:
                 if parameters_temp[i]['type_initial_network'] in ['ConstrainedRandom', 'FullyConnected', 'FullyConnected_NoDirectEnv']:
-                    pass
+                    continue
                 
         if not (parameters_temp[i]['flag_DiscreteChoice'] or parameters_temp[i]['flag_DiscreteChoice_Darts'] ):
             parameters_temp[i]['DiscreteChoice_freq'] = None
@@ -522,6 +524,8 @@ if __name__=="__main__":
             if np.mod(parameters_temp[i]['num_manager'], 3) == 2:
                 parameters_temp[i]['width_seq'][0] = parameters_temp[i]['width_seq'][0]+1
                 parameters_temp[i]['width_seq'][1] = parameters_temp[i]['width_seq'][1]+1
+                
+        
         
         dup = False
         for p in parameters_list:
