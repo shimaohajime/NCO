@@ -30,7 +30,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 # Assuming that we are on a CUDA machine, this should print a CUDA device:
 
-print(device)
+print('---Device:'+str(device)+'---')
 
 
 def xavier_init(size):
@@ -481,7 +481,7 @@ if __name__=="__main__":
                             'DiscreteChoice_freq': [10], 
                             'DiscreteChoice_lr': [0.],
                             'DiscreteChoice_L1_coeff': [0.001],
-                            'type_initial_network': ['FullyConnected','layered_full','layered_random'], #'layered_full' #'ConstrainedRandom',
+                            'type_initial_network': ['FullyConnected','layered_full'], #,'layered_random''layered_full' #'ConstrainedRandom',
                             'flag_BatchNorm': [True], 
                             'env_type': ['match_mod2'],
                             #'width_seq':[[8,8,8]]
