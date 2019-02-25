@@ -406,7 +406,7 @@ class NCO_main(nn.Module):
             if self.flag_AgentPruning:
                 if it%self.AgentPruning_freq==0 and it>0:
                     for layer_i in range(self.num_layer):
-                        
+                        pass
                             
             if it%200==0:
                 #Printing
