@@ -28,6 +28,11 @@ from NCO_functions import createFolder,Environment,gen_full_network,gen_constrai
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
+if device != 'cpu':
+    pass
+else:
+    pass
+
 # Assuming that we are on a CUDA machine, this should print a CUDA device:
 
 print('---Device:'+str(device)+'---')
@@ -36,7 +41,7 @@ print('---Device:'+str(device)+'---')
 def xavier_init(size):
     in_dim = size[0]
     xavier_stddev = 1. / np.sqrt(in_dim / 2.)
-    return Variable(torch.randn(*size) * xavier_stddev, requires_grad=True)
+    return Variable(torch.randn(*size, device=device) * xavier_stddev, requires_grad=True)
 
 
 class NCO_main(nn.Module):
@@ -46,6 +51,7 @@ class NCO_main(nn.Module):
                  flag_DeepR = False, DeepR_freq = 2000, DeepR_T = 0.00001,DeepR_layered=False,
                  flag_pruning = False, pruning_freq = 100,
                  flag_DiscreteChoice = False, flag_DiscreteChoice_Darts = False, DiscreteChoice_freq = 10, DiscreteChoice_lr = 0.,DiscreteChoice_L1_coeff = 0.001,
+                 flag_ResNet = False,flag_AgentPruning = False, AgentPruning_freq = None,
                  type_initial_network = 'ConstrainedRandom', flag_BatchNorm = True, env_type = 'match_mod2',width_seq=None
                  ):
         super(NCO_main, self).__init__()
@@ -82,6 +88,13 @@ class NCO_main(nn.Module):
         self.DiscreteChoice_lr = DiscreteChoice_lr
         self.DiscreteChoice_L1_coeff = DiscreteChoice_L1_coeff
         
+        #ResNet
+        self.flag_ResNet = flag_ResNet
+        
+        #Agent Pruning
+        self.flag_AgentPruning = flag_AgentPruning
+        self.AgentPruning_freq = AgentPruning_freq
+        
         
         #Initial values
         self.type_initial_network = type_initial_network#'FullyConnected'#'ConstrainedRandom'
@@ -100,22 +113,25 @@ class NCO_main(nn.Module):
 
         if type_initial_network is 'ConstrainedRandom':
             self.network_const_np = gen_constrained_network(num_environment,num_manager,num_agent,dunbar_number)
-            self.network = torch.Tensor(np.abs(self.network_const_np) )
+            self.network = torch.Tensor(np.abs(self.network_const_np), device=device )
         elif type_initial_network is 'FullyConnected':
-            self.network = torch.Tensor(np.abs(self.network_full_np) )
+            self.network = torch.Tensor(np.abs(self.network_full_np) , device=device)
         elif type_initial_network is 'FullyConnected_NoDirectEnv':
-            self.network = torch.Tensor(np.abs(self.network_full_np) )
+            self.network = torch.Tensor(np.abs(self.network_full_np) , device=device)
             self.network[:num_environment, num_manager:]=0            
         elif type_initial_network is 'layered_random':
             self.network_full_layered_np = gen_constrained_network(num_environment,num_manager,num_agent,dunbar_number, type_network='layered_full',width_seq=width_seq)            
-            self.network_full_layered = torch.Tensor(self.network_full_layered_np)
+            self.network_full_layered = torch.Tensor(self.network_full_layered_np, device=device)
             self.network_const_np = gen_constrained_network(num_environment,num_manager,num_agent,dunbar_number, type_network='layered_random',width_seq=width_seq)            
-            self.network = torch.Tensor(np.abs(self.network_const_np) )
+            self.network = torch.Tensor(np.abs(self.network_const_np) , device=device)
+            self.num_layer = len(width_seq)
+            self.width_seq = width_seq
         elif type_initial_network is 'layered_full':
             self.network_full_layered_np = gen_constrained_network(num_environment,num_manager,num_agent,dunbar_number, type_network='layered_full',width_seq=width_seq)            
-            self.network_full_layered = torch.Tensor(self.network_full_layered_np)
-            self.network = torch.Tensor(np.abs(self.network_full_layered_np) )
-            
+            self.network_full_layered = torch.Tensor(self.network_full_layered_np, device=device)
+            self.network = torch.Tensor(np.abs(self.network_full_layered_np) , device=device)
+            self.num_layer = len(width_seq)
+            self.width_seq = width_seq
             
             
         env_class = Environment(batchsize=None,num_environment=self.num_environment,num_agents=num_agent,num_manager=num_manager,num_actor=num_actor,env_type=env_type,input_type='all_comb',flag_normalize=False,env_network=self.network_const_env)
@@ -123,8 +139,8 @@ class NCO_main(nn.Module):
         
         self.env_input_np = env_class.environment
         self.env_output_np = env_class.env_pattern
-        self.env_input = torch.Tensor(self.env_input_np)
-        self.env_output = torch.Tensor(self.env_output_np)
+        self.env_input = torch.Tensor(self.env_input_np, device=device)
+        self.env_output = torch.Tensor(self.env_output_np, device=device)
 
         #Batchsize                
         self.batchsize = self.env_input.shape[0]#64
@@ -141,28 +157,28 @@ class NCO_main(nn.Module):
         #Weights. shape[0] is the dimension of inputs, shape[1] is the number of agents.
         self.W_env_to_message = xavier_init([num_environment,num_manager]) #Variable(torch.randn([num_environment,num_manager]), requires_grad=True)
         self.W_env_to_action = xavier_init([num_environment,num_actor])#Variable(torch.randn([num_environment,num_actor]), requires_grad=True)
-        self.W_message_to_message = Variable(torch.randn([num_manager,num_manager]), requires_grad=True)
-        self.W_message_to_action = Variable(torch.randn([num_manager,num_actor]), requires_grad=True)        
-        self.b_message = Variable(torch.zeros([num_manager]), requires_grad=True)
-        self.b_action = Variable(torch.randn([num_actor]), requires_grad=True)
+        self.W_message_to_message = Variable(torch.randn([num_manager,num_manager], device=device), requires_grad=True)
+        self.W_message_to_action = Variable(torch.randn([num_manager,num_actor], device=device), requires_grad=True)        
+        self.b_message = Variable(torch.zeros([num_manager], device=device), requires_grad=True)
+        self.b_action = Variable(torch.randn([num_actor], device=device), requires_grad=True)
 
         ##Parameters for batch normalization
         if flag_BatchNorm:
-            self.BatchNorm_gamma_message_to_message = Variable(torch.randn([num_manager,num_manager]), requires_grad=True)
-            self.BatchNorm_gamma_message_to_action = Variable(torch.randn([num_manager,num_actor]), requires_grad=True)
-            self.BatchNorm_gamma_env_to_message = Variable(torch.randn([num_environment,num_manager]), requires_grad=True)
-            self.BatchNorm_gamma_env_to_action = Variable(torch.randn([num_environment,num_actor]), requires_grad=True)
+            self.BatchNorm_gamma_message_to_message = Variable(torch.randn([num_manager,num_manager], device=device), requires_grad=True)
+            self.BatchNorm_gamma_message_to_action = Variable(torch.randn([num_manager,num_actor], device=device), requires_grad=True)
+            self.BatchNorm_gamma_env_to_message = Variable(torch.randn([num_environment,num_manager], device=device), requires_grad=True)
+            self.BatchNorm_gamma_env_to_action = Variable(torch.randn([num_environment,num_actor], device=device), requires_grad=True)
             
-            self.BatchNorm_beta_message_to_message = Variable(torch.randn([num_manager,num_manager]), requires_grad=True)
-            self.BatchNorm_beta_message_to_action = Variable(torch.randn([num_manager,num_actor]), requires_grad=True)
-            self.BatchNorm_beta_env_to_message = Variable(torch.randn([num_environment,num_manager]), requires_grad=True)
-            self.BatchNorm_beta_env_to_action = Variable(torch.randn([num_environment,num_actor]), requires_grad=True)
+            self.BatchNorm_beta_message_to_message = Variable(torch.randn([num_manager,num_manager], device=device), requires_grad=True)
+            self.BatchNorm_beta_message_to_action = Variable(torch.randn([num_manager,num_actor], device=device), requires_grad=True)
+            self.BatchNorm_beta_env_to_message = Variable(torch.randn([num_environment,num_manager], device=device), requires_grad=True)
+            self.BatchNorm_beta_env_to_action = Variable(torch.randn([num_environment,num_actor], device=device), requires_grad=True)
         
             self.BatchNorm_eps = 1e-5
             
         #Parameters for discrete chocie
         if flag_DiscreteChoice or flag_DiscreteChoice_Darts:
-            self.DiscreteChoice_alpha = Variable(torch.zeros_like(self.network), requires_grad=True)#Variable(torch.randn_like(network), requires_grad=True)
+            self.DiscreteChoice_alpha = Variable(torch.zeros_like(self.network, device=device), requires_grad=True)#Variable(torch.randn_like(network), requires_grad=True)
 
 
         self.params_to_optimize = [self.W_env_to_message,self.W_env_to_action,self.W_message_to_message,self.W_message_to_action,self.b_message,self.b_action]
@@ -214,10 +230,10 @@ class NCO_main(nn.Module):
             '''
             
             #Initialize message and action
-            self.message = torch.Tensor(torch.zeros([self.batchsize,self.num_manager]))
-            self.action_state = torch.Tensor(torch.zeros([self.batchsize,self.num_actor]))
-            self.action = torch.Tensor(torch.zeros([self.batchsize,self.num_actor]))
-            self.action_loss = torch.Tensor(torch.zeros([self.batchsize,self.num_actor]))
+            self.message = torch.Tensor(torch.zeros([self.batchsize,self.num_manager], device=device))
+            self.action_state = torch.Tensor(torch.zeros([self.batchsize,self.num_actor], device=device))
+            self.action = torch.Tensor(torch.zeros([self.batchsize,self.num_actor], device=device))
+            self.action_loss = torch.Tensor(torch.zeros([self.batchsize,self.num_actor], device=device))
             
             #Create messages sequentially
             for i in range(self.num_manager):
@@ -271,7 +287,7 @@ class NCO_main(nn.Module):
                 
                 
             self.total_loss.backward()
-            self.error_rate = torch.mean(torch.abs((self.action.data>.5).float() - self.env_output ) )
+            self.error_rate = torch.mean(torch.abs((self.action.data.cpu()>.5).float() - self.env_output ) )
             
 
             #Gradient Descent Update
@@ -336,8 +352,8 @@ class NCO_main(nn.Module):
                         with torch.no_grad():            
                             self.DiscreteChoice_alpha = self.DiscreteChoice_alpha -self.DiscreteChoice_lr * self.DiscreteChoice_alpha.grad
                             self.DiscreteChoice_alpha.requires_grad = True
-                        #print('alpha mean:'+str( torch.mean(DiscreteChoice_alpha.data) ))
-                        #print('alpha var:'+str( torch.var(DiscreteChoice_alpha.data) ))
+                        #print('alpha mean:'+str( torch.mean(DiscreteChoice_alpha.data.cpu()) ))
+                        #print('alpha var:'+str( torch.var(DiscreteChoice_alpha.data.cpu()) ))
 
             # Housekeeping
             for p in self.params_to_optimize:
@@ -385,31 +401,38 @@ class NCO_main(nn.Module):
                             pos_inactivate = np.random.choice(pos_active[0][(pos_active[0]<self.fanin_max_list[i])],[n_inactivate],replace=False)
                             network_i[pos_inactivate]=torch.zeros(len(pos_inactivate))
                             
+                            
+            #Pruning agent
+            if self.flag_AgentPruning:
+                if it%self.AgentPruning_freq==0 and it>0:
+                    for layer_i in range(self.num_layer):
+                        
+                            
             if it%200==0:
                 #Printing
                 print('Iter %i'%it)
-                print('action loss: %.6f, L1 loss: %.6f, Total: %.6f'%(self.action_loss.data, self.L1_loss.data, self.total_loss.data))
+                print('action loss: %.6f, L1 loss: %.6f, Total: %.6f'%(self.action_loss.data.cpu(), self.L1_loss.data.cpu(), self.total_loss.data.cpu()))
                 print('error rate: %.4f'%(self.error_rate))
                 #Recording the result
-                self.W_env_to_message_list.append(self.W_env_to_message.data)
-                self.W_env_to_action_list.append(self.W_env_to_action.data)
-                self.W_message_to_message_list.append(self.W_message_to_message.data)
-                self.W_message_to_action_list.append(self.W_message_to_action.data)
-                self.b_message_list.append(self.b_message.data)
-                self.b_action_list.append(self.b_action.data)
+                self.W_env_to_message_list.append(self.W_env_to_message.data.cpu())
+                self.W_env_to_action_list.append(self.W_env_to_action.data.cpu())
+                self.W_message_to_message_list.append(self.W_message_to_message.data.cpu())
+                self.W_message_to_action_list.append(self.W_message_to_action.data.cpu())
+                self.b_message_list.append(self.b_message.data.cpu())
+                self.b_action_list.append(self.b_action.data.cpu())
                 
-                self.action_loss_list.append(self.action_loss.data)
-                self.total_loss_list.append(self.total_loss.data)
-                self.error_rate_list.append(self.error_rate.data)
+                self.action_loss_list.append(self.action_loss.data.cpu())
+                self.total_loss_list.append(self.total_loss.data.cpu())
+                self.error_rate_list.append(self.error_rate.data.cpu())
                 
-                self.network_list.append(self.network.data)
-                self.message_list.append(self.message.data)
+                self.network_list.append(self.network.data.cpu())
+                self.message_list.append(self.message.data.cpu())
                 
                 if self.flag_DiscreteChoice or self.flag_DiscreteChoice_Darts:
                     print('alpha L1 loss: %.6f'%self.L1_alpha)
                     self.DiscreteChoice_alpha_list.append(self.DiscreteChoice_alpha)
-                    print('alpha:'+str(self.DiscreteChoice_alpha.data[:,-1]))
-                    print('w_ma:'+str(self.W_message_to_action.data.flatten()))
+                    print('alpha:'+str(self.DiscreteChoice_alpha.data.cpu()[:,-1]))
+                    print('w_ma:'+str(self.W_message_to_action.data.cpu().flatten()))
         
         
                 print(self.action[:10])
@@ -434,14 +457,14 @@ class NCO_main(nn.Module):
 
             if it%1000==0:
                 lf = torch.nn.BCELoss()
-                l = np.zeros([len(self.message_list),self.message.data.shape[1] ])
+                l = np.zeros([len(self.message_list),self.message.data.cpu().shape[1] ])
                 '''
                 for i in range( len(self.message_list) ):
                     m = self.message_list[i]
-                    for j in range( self.message.data.shape[1] ):
+                    for j in range( self.message.data.cpu().shape[1] ):
                         l[i,j] = lf(m[:,j], self.env_output.flatten())
                        
-                for j in range(self.message.data.shape[1]):
+                for j in range(self.message.data.cpu().shape[1]):
                     plt.plot(np.arange(len(l[:,j]) ) ,l[:,j])
                     plt.title('%i-th message'%j  )
                     plt.show()
@@ -481,6 +504,7 @@ if __name__=="__main__":
                             'DiscreteChoice_freq': [10], 
                             'DiscreteChoice_lr': [0.],
                             'DiscreteChoice_L1_coeff': [0.001],
+                            'flag_ResNet':[False],
                             'type_initial_network': ['FullyConnected','layered_full'], #,'layered_random''layered_full' #'ConstrainedRandom',
                             'flag_BatchNorm': [True], 
                             'env_type': ['match_mod2'],
