@@ -367,9 +367,9 @@ class NCO_main(nn.Module):
             if self.flag_DeepR:
                 if it%self.DeepR_freq==0 and it>0:
                     #print('****************Rewiring Network*********************')
-                    negative_m = torch.cat((self.W_env_to_message>0,self.W_message_to_message>0),dim=0)
-                    negative_a = torch.cat((self.W_env_to_action>0,self.W_message_to_action>0),dim=0)
-                    negative = torch.cat( (negative_m,negative_a),dim=1 )                    
+                    negative_m = torch.cat((self.W_env_to_message>0,self.W_message_to_message>0),dim=0).type(dtype_float)
+                    negative_a = torch.cat((self.W_env_to_action>0,self.W_message_to_action>0),dim=0).type(dtype_float)
+                    negative = torch.cat( (negative_m,negative_a),dim=1 ).type(dtype_float)
                     self.network = negative * self.network
                     for i in range(self.num_agent):
                         network_i = self.network[:,i]
