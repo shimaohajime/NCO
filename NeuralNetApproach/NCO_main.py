@@ -43,7 +43,7 @@ print('---Device:'+str(device)+'---')
 def xavier_init(size):
     in_dim = size[0]
     xavier_stddev = 1. / np.sqrt(in_dim / 2.)
-    return Variable(torch.randn(*size) * xavier_stddev, requires_grad=True)
+    return torch.tensor(np.random.randn(*size).astype(np.float32) * xavier_stddev, requires_grad=True,device=device)
 
 
 class NCO_main(nn.Module):
@@ -115,23 +115,23 @@ class NCO_main(nn.Module):
 
         if type_initial_network is 'ConstrainedRandom':
             self.network_const_np = gen_constrained_network(num_environment,num_manager,num_agent,dunbar_number)
-            self.network = torch.Tensor(np.abs(self.network_const_np)).type(dtype_float).to(device)
+            self.network = torch.tensor(np.abs(self.network_const_np),device=device)
         elif type_initial_network is 'FullyConnected':
-            self.network = torch.Tensor(np.abs(self.network_full_np)).type(dtype_float).to(device)
+            self.network = torch.tensor(np.abs(self.network_full_np).astype(np.float32),device=device)
         elif type_initial_network is 'FullyConnected_NoDirectEnv':
-            self.network = torch.Tensor(np.abs(self.network_full_np)).type(dtype_float).to(device)
+            self.network = torch.tensor(np.abs(self.network_full_np).astype(np.float32),device=device)
             self.network[:num_environment, num_manager:]=0            
         elif type_initial_network is 'layered_random':
             self.network_full_layered_np = gen_constrained_network(num_environment,num_manager,num_agent,dunbar_number, type_network='layered_full',width_seq=width_seq)            
-            self.network_full_layered = torch.Tensor(self.network_full_layered_np).type(dtype_float).to(device)
+            self.network_full_layered = torch.Tensor(self.network_full_layered_np.astype(np.float32))
             self.network_const_np = gen_constrained_network(num_environment,num_manager,num_agent,dunbar_number, type_network='layered_random',width_seq=width_seq)            
-            self.network = torch.Tensor(np.abs(self.network_const_np) ).type(dtype_float).to(device)
+            self.network = torch.tensor(np.abs(self.network_const_np).astype(np.float32),device=device )
             self.num_layer = len(width_seq)
             self.width_seq = width_seq
         elif type_initial_network is 'layered_full':
             self.network_full_layered_np = gen_constrained_network(num_environment,num_manager,num_agent,dunbar_number, type_network='layered_full',width_seq=width_seq)            
-            self.network_full_layered = torch.Tensor(self.network_full_layered_np).type(dtype_float).to(device)
-            self.network = torch.Tensor(np.abs(self.network_full_layered_np)).type(dtype_float).to(device)
+            self.network_full_layered = torch.Tensor(self.network_full_layered_np)
+            self.network = torch.tensor(np.abs(self.network_full_layered_np).astype(np.float32),device=device)
             self.num_layer = len(width_seq)
             self.width_seq = width_seq
             
@@ -139,10 +139,10 @@ class NCO_main(nn.Module):
         env_class = Environment(batchsize=None,num_environment=self.num_environment,num_agents=num_agent,num_manager=num_manager,num_actor=num_actor,env_type=env_type,input_type='all_comb',flag_normalize=False,env_network=self.network_const_env)
         env_class.create_env()
         
-        self.env_input_np = env_class.environment
-        self.env_output_np = env_class.env_pattern
-        self.env_input = torch.Tensor(self.env_input_np).type(dtype_float).to(device)
-        self.env_output = torch.Tensor(self.env_output_np).type(dtype_float).to(device)
+        self.env_input_np = env_class.environment.astype(np.float32)
+        self.env_output_np = env_class.env_pattern.astype(np.float32)
+        self.env_input = torch.tensor(self.env_input_np,device=device)
+        self.env_output = torch.tensor(self.env_output_np,device=device)
 
         #Batchsize                
         self.batchsize = self.env_input.shape[0]#64
@@ -157,30 +157,29 @@ class NCO_main(nn.Module):
         self.Wmm_init_np = np.random.normal( 0, 1/np.sqrt(m_in_max[:num_manager]), size = [num_manager,num_manager] )
         self.Wma_init_np = np.random.normal( 0, 1/np.sqrt(m_in_max[num_manager:]), size = [num_manager,num_actor] )        
         #Weights. shape[0] is the dimension of inputs, shape[1] is the number of agents.
-        self.W_env_to_message = xavier_init([num_environment,num_manager]).type(dtype_float).to(device) #Variable(torch.randn([num_environment,num_manager]), requires_grad=True)
-        self.W_env_to_action = xavier_init([num_environment,num_actor]).type(dtype_float)#Variable(torch.randn([num_environment,num_actor]), requires_grad=True)
-        self.W_message_to_message = Variable(torch.randn([num_manager,num_manager]), requires_grad=True).type(dtype_float).to(device)
-        self.W_message_to_action = Variable(torch.randn([num_manager,num_actor]), requires_grad=True).type(dtype_float).to(device)        
-        self.b_message = Variable(torch.zeros([num_manager]), requires_grad=True).type(dtype_float).to(device)
-        self.b_action = Variable(torch.randn([num_actor]), requires_grad=True).type(dtype_float).to(device)
-
+        self.W_env_to_message = xavier_init([num_environment,num_manager])#Variable(torch.randn([num_environment,num_manager]), requires_grad=True)
+        self.W_env_to_action = xavier_init([num_environment,num_actor])#Variable(torch.randn([num_environment,num_actor]), requires_grad=True)
+        self.W_message_to_message = torch.tensor(np.random.randn(num_manager,num_manager).astype(np.float32), requires_grad=True,device=device)
+        self.W_message_to_action = torch.tensor(np.random.randn(num_manager,num_actor).astype(np.float32), requires_grad=True,device=device)     
+        self.b_message = torch.tensor(np.zeros([num_manager]).astype(np.float32), requires_grad=True,device=device)
+        self.b_action = torch.tensor(np.random.randn(num_actor).astype(np.float32), requires_grad=True,device=device)
         ##Parameters for batch normalization
         if flag_BatchNorm:
-            self.BatchNorm_gamma_message_to_message = Variable(torch.randn([num_manager,num_manager]), requires_grad=True).type(dtype_float).to(device)
-            self.BatchNorm_gamma_message_to_action = Variable(torch.randn([num_manager,num_actor]), requires_grad=True).type(dtype_float).to(device)
-            self.BatchNorm_gamma_env_to_message = Variable(torch.randn([num_environment,num_manager]), requires_grad=True).type(dtype_float).to(device)
-            self.BatchNorm_gamma_env_to_action = Variable(torch.randn([num_environment,num_actor]), requires_grad=True).type(dtype_float).to(device)
+            self.BatchNorm_gamma_message_to_message = torch.tensor(np.random.randn(num_manager,num_manager).astype(np.float32), requires_grad=True ,device=device)
+            self.BatchNorm_gamma_message_to_action = torch.tensor(np.random.randn(num_manager,num_actor).astype(np.float32), requires_grad=True,device=device)
+            self.BatchNorm_gamma_env_to_message = torch.tensor(np.random.randn(num_environment,num_manager).astype(np.float32), requires_grad=True,device=device)
+            self.BatchNorm_gamma_env_to_action = torch.tensor(np.random.randn(num_environment,num_actor).astype(np.float32), requires_grad=True,device=device)
             
-            self.BatchNorm_beta_message_to_message = Variable(torch.randn([num_manager,num_manager]), requires_grad=True).type(dtype_float).to(device)
-            self.BatchNorm_beta_message_to_action = Variable(torch.randn([num_manager,num_actor]), requires_grad=True).type(dtype_float).to(device)
-            self.BatchNorm_beta_env_to_message = Variable(torch.randn([num_environment,num_manager]), requires_grad=True).type(dtype_float).to(device)
-            self.BatchNorm_beta_env_to_action = Variable(torch.randn([num_environment,num_actor]), requires_grad=True).type(dtype_float).to(device)
+            self.BatchNorm_beta_message_to_message = torch.tensor(np.random.randn(num_manager,num_manager).astype(np.float32), requires_grad=True,device=device)
+            self.BatchNorm_beta_message_to_action = torch.tensor(np.random.randn(num_manager,num_actor).astype(np.float32), requires_grad=True,device=device)
+            self.BatchNorm_beta_env_to_message = torch.tensor(np.random.randn(num_environment,num_manager).astype(np.float32), requires_grad=True,device=device)
+            self.BatchNorm_beta_env_to_action = torch.tensor(np.random.randn(num_environment,num_actor).astype(np.float32), requires_grad=True,device=device)
         
             self.BatchNorm_eps = 1e-5
             
         #Parameters for discrete chocie
         if flag_DiscreteChoice or flag_DiscreteChoice_Darts:
-            self.DiscreteChoice_alpha = Variable(torch.zeros_like(self.network), requires_grad=True).type(dtype_float).to(device)#Variable(torch.randn_like(network), requires_grad=True)
+            self.DiscreteChoice_alpha = torch.tensor(np.zeros_like(self.network).astype(np.float32), requires_grad=True,device=device)#Variable(torch.randn_like(network), requires_grad=True)
 
 
         self.params_to_optimize = [self.W_env_to_message,self.W_env_to_action,self.W_message_to_message,self.W_message_to_action,self.b_message,self.b_action]
@@ -232,10 +231,10 @@ class NCO_main(nn.Module):
             '''
             
             #Initialize message and action
-            self.message = torch.Tensor(torch.zeros([self.batchsize,self.num_manager])).type(dtype_float).to(device)
-            self.action_state = torch.Tensor(torch.zeros([self.batchsize,self.num_actor])).type(dtype_float).to(device)
-            self.action = torch.Tensor(torch.zeros([self.batchsize,self.num_actor])).type(dtype_float).to(device)
-            self.action_loss = torch.Tensor(torch.zeros([self.batchsize,self.num_actor])).type(dtype_float).to(device)
+            self.message = torch.tensor(np.zeros([self.batchsize,self.num_manager]).astype(np.float32),device=device)
+            self.action_state = torch.tensor(np.zeros([self.batchsize,self.num_actor]).astype(np.float32),device=device)
+            self.action = torch.tensor(np.zeros([self.batchsize,self.num_actor]).astype(np.float32),device=device)
+            self.action_loss = torch.tensor(np.zeros([self.batchsize,self.num_actor]).astype(np.float32),device=device)
             
             #Create messages sequentially
             for i in range(self.num_manager):
