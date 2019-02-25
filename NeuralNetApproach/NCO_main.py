@@ -130,7 +130,7 @@ class NCO_main(nn.Module):
             self.width_seq = width_seq
         elif type_initial_network is 'layered_full':
             self.network_full_layered_np = gen_constrained_network(num_environment,num_manager,num_agent,dunbar_number, type_network='layered_full',width_seq=width_seq)            
-            self.network_full_layered = torch.Tensor(self.network_full_layered_np)
+            self.network_full_layered = torch.tensor(self.network_full_layered_np.astype(np.float32), device=device)
             self.network = torch.tensor(np.abs(self.network_full_layered_np).astype(np.float32),device=device)
             self.num_layer = len(width_seq)
             self.width_seq = width_seq
