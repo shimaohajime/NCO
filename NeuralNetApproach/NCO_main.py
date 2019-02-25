@@ -289,7 +289,7 @@ class NCO_main(nn.Module):
                 
                 
             self.total_loss.backward()
-            self.error_rate = torch.mean(torch.abs((self.action.data.cpu()>.5).float() - self.env_output ) )
+            self.error_rate = torch.mean(torch.abs((self.action.data.cpu()>.5).float() - self.env_output.data.cpu() ) )
             
 
             #Gradient Descent Update
