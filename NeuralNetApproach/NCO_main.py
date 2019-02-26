@@ -382,7 +382,8 @@ class NCO_main(nn.Module):
                                 pos_inactive = (network_i==0).nonzero().flatten() 
                                 #pos_reactivate = np.random.choice(pos_inactive[0][(pos_inactive[0]<self.fanin_max_list[i])],[n_reactivate],replace=False)
                                 pos_reactivate = pos_inactive[pos_inactive<self.fanin_max_list[i]][torch.randperm( len(pos_inactive[pos_inactive<self.fanin_max_list[i]]) )[:n_reactivate] ]
-                                network_i[pos_reactivate]=torch.Tensor(np.random.choice( [1.,-1.],len(pos_reactivate) ) )
+                                #network_i[pos_reactivate]=torch.Tensor(np.random.choice( [1.,-1.],len(pos_reactivate) ) )
+                                network_i[pos_reactivate]=torch.randint(0,2,(len(pos_reactivate))).type(torch.float)*2-1.
                             if self.DeepR_layered is True:
                                 #pos_inactive = np.where( (network_i==0) * (self.network_full_layered[:,i]!=0 ) )
                                 pos_inactive = ( (network_i==0) * (self.network_full_layered[:,i]!=0 ) ).nonzero().flatten()
@@ -391,7 +392,8 @@ class NCO_main(nn.Module):
                                 if n_reactivate<=len(pos_inactive[(pos_inactive<self.fanin_max_list[i])]):
                                     #pos_reactivate = np.random.choice(pos_inactive[0][(pos_inactive[0]<self.fanin_max_list[i])],[n_reactivate],replace=False)
                                     pos_reactivate = pos_inactive[pos_inactive<self.fanin_max_list[i]][torch.randperm( len(pos_inactive[pos_inactive<self.fanin_max_list[i]]) )[:n_reactivate] ]
-                                    network_i[pos_reactivate]=torch.Tensor(np.random.choice( [1.,-1.],len(pos_reactivate) ) )
+                                    #network_i[pos_reactivate]=torch.Tensor(np.random.choice( [1.,-1.],len(pos_reactivate) ) )
+                                    network_i[pos_reactivate]=torch.randint(0,2,(len(pos_reactivate))).type(torch.float)*2-1.
                                 
                             self.network[:,i] = network_i
                             
