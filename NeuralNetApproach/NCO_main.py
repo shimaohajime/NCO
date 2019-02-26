@@ -405,8 +405,11 @@ class NCO_main(nn.Module):
                         fanin_i = torch.sum(torch.abs(network_i) )
                         if fanin_i>self.dunbar_number: 
                             n_inactivate = 1
-                            pos_active = np.where(network_i!=0)
-                            pos_inactivate = np.random.choice(pos_active[0][(pos_active[0]<self.fanin_max_list[i])],[n_inactivate],replace=False)
+                            #pos_active = np.where(network_i!=0)
+                            pos_active = (network_i!=0).nonzero().flatten() 
+                            
+                            pos_inactivate = pos_active[pos_active<self.fanin_max_list[i]][torch.randperm( len(pos_active[pos_active<self.fanin_max_list[i]]) )[:n_inactivate] ]
+                            #pos_inactivate = np.random.choice(pos_active[0][(pos_active[0]<self.fanin_max_list[i])],[n_inactivate],replace=False)
                             network_i[pos_inactivate]=torch.zeros(len(pos_inactivate))
                             
                             
@@ -443,7 +446,7 @@ class NCO_main(nn.Module):
                     print('w_ma:'+str(self.W_message_to_action.data.cpu().flatten()))
         
         
-                print(self.action[:10])
+                print(self.action[:10].data.cpu())
                 #print(W_message_to_action_grad)
 
                 self.fig_loss = plt.figure()
@@ -483,7 +486,7 @@ class NCO_main(nn.Module):
                 
                 
 if __name__=="__main__":
-    Description = 'Iterate_DeepR'
+    Description = 'RandomPruning'
 
     exec_date = datetime.datetime.now(pytz.timezone('US/Mountain')).strftime('%B%d_%H%M')
     
@@ -501,12 +504,12 @@ if __name__=="__main__":
                             'n_it':[10000],#10000
                             'message_unit':[nn.functional.relu],#[torch.sigmoid], 
                             'action_unit':[torch.sigmoid], 
-                            'flag_DeepR': [True,False],#
-                            'DeepR_layered': [True,False],
+                            'flag_DeepR': [False],#
+                            'DeepR_layered': [False],
                             'DeepR_freq' : [5], 
                             'DeepR_T' : [0.00001],
-                            'flag_pruning':[False],
-                            'pruning_freq':[100],
+                            'flag_pruning':[True],
+                            'pruning_freq':[100,200],
                             'flag_DiscreteChoice': [False], 
                             'flag_DiscreteChoice_Darts': [False], 
                             'DiscreteChoice_freq': [10], 
@@ -652,4 +655,4 @@ if __name__=="__main__":
         pickle.dump( final_network_list, open(dirname+filename_setting+"_final_network_list.pickle","wb") )
         pickle.dump( final_error_list, open(dirname+filename_setting+"_final_error_list.pickle","wb") )
         
-    pickle.dump(parameters_list, open(dirname+filename_setting+"_parameters_list.pickle","wb"))
+    pickle.dump(parameters_list, open(dirname+"Parameters_list.pickle","wb"))
