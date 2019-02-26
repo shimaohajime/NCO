@@ -379,15 +379,18 @@ class NCO_main(nn.Module):
                             n_reactivate = int(self.dunbar_number-fanin_i)
                             if self.DeepR_layered is False:                            
                                 #pos_inactive = np.where(network_i==0)
-                                pos_inactive = [(network_i==0).nonzero().flatten() ]
-                                pos_reactivate = np.random.choice(pos_inactive[0][(pos_inactive[0]<self.fanin_max_list[i])],[n_reactivate],replace=False)
+                                pos_inactive = (network_i==0).nonzero().flatten() 
+                                #pos_reactivate = np.random.choice(pos_inactive[0][(pos_inactive[0]<self.fanin_max_list[i])],[n_reactivate],replace=False)
+                                pos_reactivate = pos_inactive[pos_inactive<self.fanin_max_list[i]][torch.randperm( len(pos_inactive[pos_inactive<self.fanin_max_list[i]]) )[:n_reactivate] ]
                                 network_i[pos_reactivate]=torch.Tensor(np.random.choice( [1.,-1.],len(pos_reactivate) ) )
                             if self.DeepR_layered is True:
                                 #pos_inactive = np.where( (network_i==0) * (self.network_full_layered[:,i]!=0 ) )
-                                pos_inactive = [( (network_i==0) * (self.network_full_layered[:,i]!=0 ) ).nonzero().flatten()]
+                                pos_inactive = ( (network_i==0) * (self.network_full_layered[:,i]!=0 ) ).nonzero().flatten()
                                 self.pos_inactive = pos_inactive
-                                if n_reactivate<=len(pos_inactive[0][(pos_inactive[0]<self.fanin_max_list[i])]):
-                                    pos_reactivate = np.random.choice(pos_inactive[0][(pos_inactive[0]<self.fanin_max_list[i])],[n_reactivate],replace=False)
+                                #if n_reactivate<=len(pos_inactive[0][(pos_inactive[0]<self.fanin_max_list[i])]):
+                                if n_reactivate<=len(pos_inactive[(pos_inactive<self.fanin_max_list[i])]):
+                                    #pos_reactivate = np.random.choice(pos_inactive[0][(pos_inactive[0]<self.fanin_max_list[i])],[n_reactivate],replace=False)
+                                    pos_reactivate = pos_inactive[pos_inactive<self.fanin_max_list[i]][torch.randperm( len(pos_inactive[pos_inactive<self.fanin_max_list[i]]) )[:n_reactivate] ]
                                     network_i[pos_reactivate]=torch.Tensor(np.random.choice( [1.,-1.],len(pos_reactivate) ) )
                                 
                             self.network[:,i] = network_i
