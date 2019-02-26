@@ -51,7 +51,7 @@ class NCO_main(nn.Module):
                  lr = .01, L1_coeff = 0., n_it = 200000, 
                  message_unit = torch.sigmoid, action_unit = torch.sigmoid, 
                  flag_DeepR = False, DeepR_freq = 2000, DeepR_T = 0.00001,DeepR_layered=False,
-                 flag_pruning = False, pruning_freq = 100,
+                 flag_pruning = False, type_pruning= None, pruning_freq = 100,
                  flag_DiscreteChoice = False, flag_DiscreteChoice_Darts = False, DiscreteChoice_freq = 10, DiscreteChoice_lr = 0.,DiscreteChoice_L1_coeff = 0.001,
                  flag_ResNet = False,flag_AgentPruning = False, AgentPruning_freq = None,
                  type_initial_network = 'ConstrainedRandom', flag_BatchNorm = True, env_type = 'match_mod2',width_seq=None
@@ -81,6 +81,7 @@ class NCO_main(nn.Module):
         
         #Pruning
         self.flag_pruning = flag_pruning
+        self.type_pruning = type_pruning
         self.pruning_freq = pruning_freq
         
         #Discrete choice and Darts
@@ -407,8 +408,16 @@ class NCO_main(nn.Module):
                             n_inactivate = 1
                             #pos_active = np.where(network_i!=0)
                             pos_active = (network_i!=0).nonzero().flatten() 
-                            
-                            pos_inactivate = pos_active[pos_active<self.fanin_max_list[i]][torch.randperm( len(pos_active[pos_active<self.fanin_max_list[i]]) )[:n_inactivate] ]
+                            if self.type_pruning is 'Random':
+                                pos_inactivate = pos_active[pos_active<self.fanin_max_list[i]][torch.randperm( len(pos_active[pos_active<self.fanin_max_list[i]]) )[:n_inactivate] ]
+                            elif self.type_pruning is 'Smallest':
+                                if i< self.num_manager:
+                                    W_i = torch.cat( ( self.W_env_to_message[:,i].flatten() , self.W_message_to_message[:,i].flatten() ),dim=0  )
+                                else:
+                                    W_i = torch.cat( ( self.W_env_to_action[:,i-self.num_manager].flatten() , self.W_message_to_action[:,i-self.num_manager].flatten() ),dim=0  )
+                                _,pos_inactivate = torch.topk( W_i,1 )
+                                
+                                
                             #pos_inactivate = np.random.choice(pos_active[0][(pos_active[0]<self.fanin_max_list[i])],[n_inactivate],replace=False)
                             network_i[pos_inactivate]=torch.zeros(len(pos_inactivate))
                             
@@ -509,6 +518,7 @@ if __name__=="__main__":
                             'DeepR_freq' : [5], 
                             'DeepR_T' : [0.00001],
                             'flag_pruning':[True],
+                            'type_pruning':['Random','Smallest'],
                             'pruning_freq':[100,200],
                             'flag_DiscreteChoice': [False], 
                             'flag_DiscreteChoice_Darts': [False], 
