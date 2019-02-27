@@ -54,6 +54,7 @@ class NCO_main(nn.Module):
                  flag_pruning = False, type_pruning= None, pruning_freq = 100,
                  flag_DiscreteChoice = False, flag_DiscreteChoice_Darts = False, DiscreteChoice_freq = 10, DiscreteChoice_lr = 0.,DiscreteChoice_L1_coeff = 0.001,
                  flag_ResNet = False,flag_AgentPruning = False, AgentPruning_freq = None,
+                 flag_minibatch = False, minibatch_size = None,
                  type_initial_network = 'ConstrainedRandom', flag_BatchNorm = True, env_type = 'match_mod2',width_seq=None
                  ):
         super(NCO_main, self).__init__()
@@ -147,6 +148,12 @@ class NCO_main(nn.Module):
 
         #Batchsize                
         self.batchsize = self.env_input.shape[0]#64
+        #Minibatch learning
+        self.flag_minibatch = flag_minibatch
+        if flag_minibatch:
+            self.minibatch_size = minibatch_size
+        else:
+            self.minibatch_size = self.batchsize
 
 
         m_in_max = np.sum(self.network_full_np,axis=0)-num_environment
@@ -232,20 +239,31 @@ class NCO_main(nn.Module):
             '''
             
             #Initialize message and action
-            self.message = torch.tensor(np.zeros([self.batchsize,self.num_manager]).astype(np.float32),device=device)
-            self.action_state = torch.tensor(np.zeros([self.batchsize,self.num_actor]).astype(np.float32),device=device)
-            self.action = torch.tensor(np.zeros([self.batchsize,self.num_actor]).astype(np.float32),device=device)
-            self.action_loss = torch.tensor(np.zeros([self.batchsize,self.num_actor]).astype(np.float32),device=device)
+            self.message = torch.tensor(np.zeros([self.minibatch_size,self.num_manager]).astype(np.float32),device=device)
+            self.action_state = torch.tensor(np.zeros([self.minibatch_size,self.num_actor]).astype(np.float32),device=device)
+            self.action = torch.tensor(np.zeros([self.minibatch_size,self.num_actor]).astype(np.float32),device=device)
+            self.action_loss = torch.tensor(np.zeros([self.minibatch_size,self.num_actor]).astype(np.float32),device=device)
+            
+            if self.flag_minibatch:
+                self.minibatch_idx = torch.randint( 0, self.batchsize, (self.minibatch_size,) )
+                self.env_input_it = self.env_input[self.minibatch_idx]
+                self.env_output_it = self.env_output[self.minibatch_idx]
+            else:
+                self.env_input_it = self.env_input
+                self.env_output_it = self.env_output
+                
+                
+            
             
             #Create messages sequentially
             for i in range(self.num_manager):
-                temp = self.b_message[i].repeat([self.batchsize, 1])
+                temp = self.b_message[i].repeat([self.minibatch_size, 1])
                         
                 if not self.flag_BatchNorm:
-                    self.env_input_i = self.env_input
+                    self.env_input_i = self.env_input_it
                     self.message_in_i = self.message.clone()
                 elif self.flag_BatchNorm:
-                    self.env_input_i = self.func_BatchNorm(self.env_input, self.BatchNorm_gamma_env_to_message[:,i],self.BatchNorm_beta_env_to_message[:,i], self.BatchNorm_eps)
+                    self.env_input_i = self.func_BatchNorm(self.env_input_it, self.BatchNorm_gamma_env_to_message[:,i],self.BatchNorm_beta_env_to_message[:,i], self.BatchNorm_eps)
                     self.message_in_i = self.func_BatchNorm(self.message.clone(), self.BatchNorm_gamma_message_to_message[:,i],self.BatchNorm_beta_message_to_message[:,i], self.BatchNorm_eps)
                 
                 if not (self.flag_DiscreteChoice or self.flag_DiscreteChoice_Darts):
@@ -260,26 +278,26 @@ class NCO_main(nn.Module):
             #Create action
             for j in range(self.num_actor):
                 if not self.flag_BatchNorm:
-                    self.env_input_j = self.env_input
+                    self.env_input_j = self.env_input_it
                     self.message_in_j = self.message.clone()
                 elif self.flag_BatchNorm:
-                    self.env_input_j = self.func_BatchNorm(self.env_input, self.BatchNorm_gamma_env_to_action[:,j],self.BatchNorm_beta_env_to_action[:,j], self.BatchNorm_eps)
+                    self.env_input_j = self.func_BatchNorm(self.env_input_it, self.BatchNorm_gamma_env_to_action[:,j],self.BatchNorm_beta_env_to_action[:,j], self.BatchNorm_eps)
                     self.message_in_j = self.func_BatchNorm(self.message.clone(), self.BatchNorm_gamma_message_to_action[:,j], self.BatchNorm_beta_message_to_action[:,j], self.BatchNorm_eps)
                 
                 
                 if not (self.flag_DiscreteChoice or self.flag_DiscreteChoice_Darts):        
-                    self.action_state[:,j] = (self.b_action[j].repeat([self.batchsize, 1]) + self.env_input_j @ (self.W_env_to_action[:,j] * self.network[:self.num_environment,self.num_manager+j]).reshape([-1,1]) + self.message_in_j @ (self.W_message_to_action[:,j] * self.network[self.num_environment:,self.num_manager+j]).reshape([-1,1]) ).flatten()  
+                    self.action_state[:,j] = (self.b_action[j].repeat([self.minibatch_size, 1]) + self.env_input_j @ (self.W_env_to_action[:,j] * self.network[:self.num_environment,self.num_manager+j]).reshape([-1,1]) + self.message_in_j @ (self.W_message_to_action[:,j] * self.network[self.num_environment:,self.num_manager+j]).reshape([-1,1]) ).flatten()  
                 elif self.flag_DiscreteChoice:
                     choice_prob_a = nn.functional.softmax(self.DiscreteChoice_alpha[:,self.num_manager+j] + (self.network[:,self.num_manager+j]-1.)*1000000  )
-                    self.action_state[:,j] = (self.b_action[j].repeat([self.batchsize, 1]) + self.env_input_j @ (self.W_env_to_action[:,j] * self.network[:self.num_environment,self.num_manager+j] * choice_prob_a[:self.num_environment]).reshape([-1,1]) + self.message_in_j @ (self.W_message_to_action[:,j] * self.network[self.num_environment:,self.num_manager+j] * choice_prob_a[self.num_environment:]).reshape([-1,1]) ).flatten()  
+                    self.action_state[:,j] = (self.b_action[j].repeat([self.minibatch_size, 1]) + self.env_input_j @ (self.W_env_to_action[:,j] * self.network[:self.num_environment,self.num_manager+j] * choice_prob_a[:self.num_environment]).reshape([-1,1]) + self.message_in_j @ (self.W_message_to_action[:,j] * self.network[self.num_environment:,self.num_manager+j] * choice_prob_a[self.num_environment:]).reshape([-1,1]) ).flatten()  
                 elif self.flag_DiscreteChoice_Darts:
                     choice_prob_a = 1./(torch.exp(self.DiscreteChoice_alpha[:,self.num_manager+j]) +1.)
-                    self.action_state[:,j] = (self.b_action[j].repeat([self.batchsize, 1]) + self.env_input_j @ (self.W_env_to_action[:,j] * self.network[:self.num_environment,self.num_manager+j] * choice_prob_a[:self.num_environment]).reshape([-1,1]) + self.message_in_j @ (self.W_message_to_action[:,j] * self.network[self.num_environment:,self.num_manager+j] * choice_prob_a[self.num_environment:]).reshape([-1,1]) ).flatten()  
+                    self.action_state[:,j] = (self.b_action[j].repeat([self.minibatch_size, 1]) + self.env_input_j @ (self.W_env_to_action[:,j] * self.network[:self.num_environment,self.num_manager+j] * choice_prob_a[:self.num_environment]).reshape([-1,1]) + self.message_in_j @ (self.W_message_to_action[:,j] * self.network[self.num_environment:,self.num_manager+j] * choice_prob_a[self.num_environment:]).reshape([-1,1]) ).flatten()  
                     
                 self.action[:,j] = self.action_unit(self.action_state[:,j]) 
 
             #Calculate loss and backprop
-            self.action_loss = self.loss(self.action_state, self.env_output)
+            self.action_loss = self.loss(self.action_state, self.env_output_it)
             self.L1_loss = torch.sum( torch.abs(self.W_env_to_message)) + torch.sum(torch.abs(self.W_env_to_action) )+torch.sum(torch.abs(self.W_message_to_message) )+ torch.sum(torch.abs(self.W_message_to_action) )#+ torch.sum(torch.abs(b_message)+torch.abs(b_action) ) 
             
             self.total_loss = self.action_loss+self.L1_loss*self.L1_coeff
@@ -289,7 +307,7 @@ class NCO_main(nn.Module):
                 
                 
             self.total_loss.backward()
-            self.error_rate = torch.mean(torch.abs((self.action.data.cpu()>.5).float() - self.env_output.data.cpu() ) )
+            self.error_rate = torch.mean(torch.abs((self.action.data.cpu()>.5).float() - self.env_output_it.data.cpu() ) )
             
 
             #Gradient Descent Update
@@ -465,9 +483,10 @@ class NCO_main(nn.Module):
                 plt.close()
 
 
-                if self.error_rate<1/self.batchsize:
-                    print('Function learned!')
-                    break
+                if self.error_rate<1/self.minibatch_size:
+                    print('Function learned (for minibatch)')
+                    if not self.flag_minibatch:
+                        break
             
                 if torch.isnan(self.total_loss):
                     print('Loss NaN')
@@ -495,7 +514,7 @@ class NCO_main(nn.Module):
                 
                 
 if __name__=="__main__":
-    Description = 'RandomPruning'
+    Description = 'Minibatch_learning'
 
     exec_date = datetime.datetime.now(pytz.timezone('US/Mountain')).strftime('%B%d_%H%M')
     
@@ -526,6 +545,8 @@ if __name__=="__main__":
                             'DiscreteChoice_lr': [0.],
                             'DiscreteChoice_L1_coeff': [0.001],
                             'flag_ResNet':[False],
+                            'flag_minibatch':[False],
+                            'minibatch_size':[None],
                             'type_initial_network': ['FullyConnected','layered_full'], #,'layered_random''layered_full' #'ConstrainedRandom',
                             'flag_BatchNorm': [True], 
                             'env_type': ['match_mod2'],
