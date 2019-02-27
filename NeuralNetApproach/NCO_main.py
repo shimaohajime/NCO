@@ -430,16 +430,18 @@ class NCO_main(nn.Module):
                                 pos_inactivate = pos_active[pos_active<self.fanin_max_list[i]][torch.randperm( len(pos_active[pos_active<self.fanin_max_list[i]]) )[:n_inactivate] ]
                             elif self.type_pruning is 'Smallest':
                                 if i< self.num_manager:
-                                    W_i = torch.cat( ( self.W_env_to_message[:,i].flatten() , self.W_message_to_message[:,i].flatten() ),dim=0  )
+                                    W_i = torch.cat( ( self.W_env_to_message[:,i].flatten() , self.W_message_to_message[:,i].flatten() ),dim=0  ) * network_i
                                 else:
-                                    W_i = torch.cat( ( self.W_env_to_action[:,i-self.num_manager].flatten() , self.W_message_to_action[:,i-self.num_manager].flatten() ),dim=0  )
-                                _,pos_inactivate = torch.topk( W_i,1 )
-                                
+                                    W_i = torch.cat( ( self.W_env_to_action[:,i-self.num_manager].flatten() , self.W_message_to_action[:,i-self.num_manager].flatten() ),dim=0  ) * network_i
+                                #_,pos_inactivate = torch.topk( -torch.abs(W_i), 1 )
+                                pos_inactivate = (torch.abs(W_i)==-torch.topk(-torch.abs(W_i)[torch.abs(W_i).nonzero()].flatten(),1)[0] )
                                 
                             #pos_inactivate = np.random.choice(pos_active[0][(pos_active[0]<self.fanin_max_list[i])],[n_inactivate],replace=False)
-                            network_i[pos_inactivate]=torch.zeros(len(pos_inactivate))
+                            network_i[pos_inactivate]= 0.#torch.zeros(len(pos_inactivate))
+                            self.network[:,i] = network_i
+                            print('pruning(%i,%i)'%(pos_inactivate.nonzero(), i))
                             
-                            
+                                                        
             #Pruning agent
             if self.flag_AgentPruning:
                 if it%self.AgentPruning_freq==0 and it>0:
@@ -484,8 +486,10 @@ class NCO_main(nn.Module):
 
 
                 if self.error_rate<1/self.minibatch_size:
-                    print('Function learned (for minibatch)')
-                    if not self.flag_minibatch:
+                    print('Function learned')
+                    if self.flag_minibatch:
+                        print(' (for minibatch)')
+                    if not (self.flag_minibatch or self.flag_pruning):
                         break
             
                 if torch.isnan(self.total_loss):
@@ -514,7 +518,7 @@ class NCO_main(nn.Module):
                 
                 
 if __name__=="__main__":
-    Description = 'Pruning_larger_environment'
+    Description = 'Pruning_fixed'
 
     exec_date = datetime.datetime.now(pytz.timezone('US/Mountain')).strftime('%B%d_%H%M')
     
@@ -523,10 +527,10 @@ if __name__=="__main__":
     createFolder(dirname)
     
     parameters_for_grid = {#'num_agent':[10], 
-                           'num_manager':[9,24],#15, 
-                           'num_environment':[12,24],  #6
-                           'num_actor':[1],
-                           'dunbar_number':[4],#2,
+                           'num_manager':[24],#15, #9, 
+                           'num_environment':[6,18],  #6
+                           'num_actor':[1], #Not tested for >2 yet.
+                           'dunbar_number':[2,4],#2,
                             'lr':[.001], 
                             'L1_coeff':[.01],#0., 
                             'n_it':[10000],#10000
@@ -536,7 +540,7 @@ if __name__=="__main__":
                             'DeepR_layered': [False],
                             'DeepR_freq' : [5], 
                             'DeepR_T' : [0.00001],
-                            'flag_pruning':[False,True],
+                            'flag_pruning':[True],
                             'type_pruning':['Smallest'], #'Random',
                             'pruning_freq':[200],
                             'flag_DiscreteChoice': [False], 
@@ -593,7 +597,7 @@ if __name__=="__main__":
                 continue
         if not parameters_temp[i]['flag_pruning']:
             parameters_temp[i]['type_pruning'] = None
-            parameters_temp[i]['freq_pruning']: = None
+            parameters_temp[i]['freq_pruning'] = None
             
             
         if flag_layered:
