@@ -538,6 +538,15 @@ if __name__=="__main__":
     parameters_list = []
     
     for i in range(n_param_temp):
+        if parameters_temp[i]['type_initial_network'] in ['layered_random','layered_full']:
+            flag_layered = True
+        else:
+            flag_layered = False
+        if parameters_temp[i]['type_initial_network'] in ['FullyConnected','layered_full']:
+            flag_full = True
+        else:
+            flag_full = False
+        
         if parameters_temp[i]['dunbar_number']>parameters_temp[i]['num_environment']:
             continue
         parameters_temp[i]['num_agent'] = parameters_temp[i]['num_manager'] + parameters_temp[i]['num_actor']
@@ -550,7 +559,7 @@ if __name__=="__main__":
             if parameters_temp[i]['L1_coeff']==0.:
                 continue
             if parameters_temp[i]['DeepR_layered']:
-                if parameters_temp[i]['type_initial_network'] in ['ConstrainedRandom', 'FullyConnected', 'FullyConnected_NoDirectEnv']:
+                if not flag_layered:
                     continue
                 
         if not (parameters_temp[i]['flag_DiscreteChoice'] or parameters_temp[i]['flag_DiscreteChoice_Darts'] ):
@@ -559,10 +568,11 @@ if __name__=="__main__":
             parameters_temp[i]['DiscreteChoice_L1_coeff'] = None
             
         if parameters_temp[i]['flag_pruning']:
-            parameters_temp[i]['type_initial_network'] = 'FullyConnected'
+            if not flag_full:
+                continue
             
             
-        if parameters_temp[i]['type_initial_network'] in ['layered_random','layered_full']:
+        if flag_layered:
             parameters_temp[i]['width_seq']  =[ int(parameters_temp[i]['num_manager']/3),int(parameters_temp[i]['num_manager']/3),int(parameters_temp[i]['num_manager']/3) ]
             if np.mod(parameters_temp[i]['num_manager'], 3) == 1:
                 parameters_temp[i]['width_seq'][1] = parameters_temp[i]['width_seq'][1]+1
