@@ -514,7 +514,7 @@ class NCO_main(nn.Module):
                 
                 
 if __name__=="__main__":
-    Description = 'Minibatch_learning'
+    Description = 'Pruning_larger_environment'
 
     exec_date = datetime.datetime.now(pytz.timezone('US/Mountain')).strftime('%B%d_%H%M')
     
@@ -524,7 +524,7 @@ if __name__=="__main__":
     
     parameters_for_grid = {#'num_agent':[10], 
                            'num_manager':[9,24],#15, 
-                           'num_environment':[6], 
+                           'num_environment':[12,24],  #6
                            'num_actor':[1],
                            'dunbar_number':[4],#2,
                             'lr':[.001], 
@@ -536,7 +536,7 @@ if __name__=="__main__":
                             'DeepR_layered': [False],
                             'DeepR_freq' : [5], 
                             'DeepR_T' : [0.00001],
-                            'flag_pruning':[True],
+                            'flag_pruning':[False,True],
                             'type_pruning':['Smallest'], #'Random',
                             'pruning_freq':[200],
                             'flag_DiscreteChoice': [False], 
@@ -591,6 +591,9 @@ if __name__=="__main__":
         if parameters_temp[i]['flag_pruning']:
             if not flag_full:
                 continue
+        if not parameters_temp[i]['flag_pruning']:
+            parameters_temp[i]['type_pruning'] = None
+            parameters_temp[i]['freq_pruning']: = None
             
             
         if flag_layered:
@@ -600,6 +603,10 @@ if __name__=="__main__":
             if np.mod(parameters_temp[i]['num_manager'], 3) == 2:
                 parameters_temp[i]['width_seq'][0] = parameters_temp[i]['width_seq'][0]+1
                 parameters_temp[i]['width_seq'][1] = parameters_temp[i]['width_seq'][1]+1
+                
+                
+        if not parameters_temp[i]['flag_minibatch']:
+            parameters_temp[i]['minibatch_size'] = None
                 
         
         
@@ -696,4 +703,4 @@ if __name__=="__main__":
         pickle.dump( final_network_list, open(dirname+filename_setting+"_final_network_list.pickle","wb") )
         pickle.dump( final_error_list, open(dirname+filename_setting+"_final_error_list.pickle","wb") )
         
-    pickle.dump(parameters_list, open(dirname+"Parameters_list.pickle","wb"))
+    pickle.dump(parameters_list, open(dirname+"/Parameters_list.pickle","wb"))
