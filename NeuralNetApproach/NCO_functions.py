@@ -70,10 +70,11 @@ def gen_full_network(num_environment,num_manager,num_agent):
 
 
 class Environment():
-    def __init__(self,batchsize=None,num_environment=6,env_network=None,num_agents=None,num_manager=None,num_actor=None,env_weight=None,env_bias=None,env_type='match_mod2',input_type='all_comb',flag_normalize=False):
+    def __init__(self,batchsize=None,num_environment=6,env_network=None,num_agents=None,num_manager=None,num_actor=None,env_weight=None,env_bias=None,env_type='match_mod2',env_n_region=None,input_type='all_comb',flag_normalize=False):
         self.batchsize = batchsize
         self.num_environment = num_environment
         self.env_type = env_type
+        self.env_n_region = env_n_region
         self.input_type = input_type
         self.flag_normalize = flag_normalize
         if env_type == 'gen_from_network':
@@ -125,6 +126,16 @@ class Environment():
             lmod = np.mod(np.sum(left,axis=1),2)
             rmod = np.mod(np.sum(right,axis=1),2)
             self.env_pattern = (lmod==rmod).astype(np.float32).reshape([-1,1])            
+
+        if self.env_type is 'match_mod2_n': 
+            pattern_region = np.zeros([self.batchsize, self.env_n_region])
+            for i in range(self.env_n_region):
+                env_i = self.environment[:, int(self.num_environment/self.env_n_region)*i:int(self.num_environment/self.env_n_region)*(i+1)  ]
+                pattern_region[:,i] = np.mod( np.sum(env_i,axis=1),2  )
+            self.env_pattern = np.mod(  np.sum(pattern_region,axis=1),2    ).reshape([-1,1])
+                
+                
+
         '''
         #This part assumes network matrix to be (num_agent+num_environment, num_agent) for TF version
         #PyTorch version assumes network to be (num_agent+num_environment-1, num_agent), excluding loops within an agent.
@@ -172,7 +183,9 @@ class Environment():
 
 
 def draw_network(num_environment=6, num_manager=9, num_actor=1,num_agent=10, network=None, filename=None):
-    pass
+    
+    network = np.abs(network)
+    
     position={}
     color = []        
     G = nx.DiGraph()        
@@ -258,3 +271,10 @@ def draw_network(num_environment=6, num_manager=9, num_actor=1,num_agent=10, net
 
 
 
+def check_dunbar(network, dunbar_number):
+    dunbar_violate =np.zeros(network.shape[1])
+    for i in range(network.shape[1]):
+        network_i = np.abs(network[:,i] )
+        if np.sum(network_i)>dunbar_number:
+            dunbar_violate[i] = 1
+    return dunbar_violate
