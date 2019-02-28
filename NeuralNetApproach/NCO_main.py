@@ -53,9 +53,10 @@ class NCO_main(nn.Module):
                  flag_DeepR = False, DeepR_freq = 2000, DeepR_T = 0.00001,DeepR_layered=False,
                  flag_pruning = False, type_pruning= None, pruning_freq = 100,
                  flag_DiscreteChoice = False, flag_DiscreteChoice_Darts = False, DiscreteChoice_freq = 10, DiscreteChoice_lr = 0.,DiscreteChoice_L1_coeff = 0.001,
-                 flag_ResNet = False,flag_AgentPruning = False, AgentPruning_freq = None,
+                 flag_ResNet = False,
+                 flag_AgentPruning = False, AgentPruning_freq = None,
                  flag_minibatch = False, minibatch_size = None,
-                 type_initial_network = 'ConstrainedRandom', flag_BatchNorm = True, env_type = 'match_mod2',width_seq=None
+                 type_initial_network = 'ConstrainedRandom', flag_BatchNorm = True, env_type = 'match_mod2',env_n_region=None,width_seq=None
                  ):
         super(NCO_main, self).__init__()
         #Basic parameters
@@ -108,6 +109,7 @@ class NCO_main(nn.Module):
         
         #Type of environment generation
         self.env_type = env_type
+        self.env_n_region = env_n_region
         
         
         #Generate network and environment
@@ -138,7 +140,7 @@ class NCO_main(nn.Module):
             self.width_seq = width_seq
             
             
-        env_class = Environment(batchsize=None,num_environment=self.num_environment,num_agents=num_agent,num_manager=num_manager,num_actor=num_actor,env_type=env_type,input_type='all_comb',flag_normalize=False,env_network=self.network_const_env)
+        env_class = Environment(batchsize=None,num_environment=self.num_environment,num_agents=num_agent,num_manager=num_manager,num_actor=num_actor,env_type=env_type,env_n_region=env_n_region,input_type='all_comb',flag_normalize=False,env_network=self.network_const_env)
         env_class.create_env()
         
         self.env_input_np = env_class.environment.astype(np.float32)
@@ -527,33 +529,41 @@ if __name__=="__main__":
     createFolder(dirname)
     
     parameters_for_grid = {#'num_agent':[10], 
-                           'num_manager':[24],#15, #9, 
-                           'num_environment':[6,18],  #6
+                           'num_manager':[24,36],#15, #9, 
+                           'num_environment':[12,24],  #6
                            'num_actor':[1], #Not tested for >2 yet.
-                           'dunbar_number':[2,4],#2,
+                           'dunbar_number':[4],#2,
                             'lr':[.001], 
                             'L1_coeff':[.01],#0., 
                             'n_it':[10000],#10000
                             'message_unit':[nn.functional.relu],#[torch.sigmoid], 
                             'action_unit':[torch.sigmoid], 
+                            
                             'flag_DeepR': [False],#
                             'DeepR_layered': [False],
                             'DeepR_freq' : [5], 
                             'DeepR_T' : [0.00001],
-                            'flag_pruning':[True],
-                            'type_pruning':['Smallest'], #'Random',
+                            
+                            'flag_pruning':[False],
+                            'type_pruning':[None], #'Random','Smallest'
                             'pruning_freq':[200],
+                            
+                            'flag_AgentPruning':[False],
+                            'AgentPruning_freq':[None],
+                            
                             'flag_DiscreteChoice': [False], 
                             'flag_DiscreteChoice_Darts': [False], 
                             'DiscreteChoice_freq': [10], 
                             'DiscreteChoice_lr': [0.],
                             'DiscreteChoice_L1_coeff': [0.001],
+                            
                             'flag_ResNet':[False],
                             'flag_minibatch':[False],
-                            'minibatch_size':[None],
-                            'type_initial_network': ['FullyConnected','layered_full'], #,'layered_random''layered_full' #'ConstrainedRandom',
+                            'minibatch_size':[30],
+                            'type_initial_network': ['layered_random'], #'FullyConnected''layered_full',,'layered_full' #'ConstrainedRandom',
                             'flag_BatchNorm': [True], 
-                            'env_type': ['match_mod2'],
+                            'env_type': ['match_mod2_n'],#match_mod2
+                            'env_n_region':[2,4]
                             #'width_seq':[[8,8,8]]
             }
     
@@ -571,6 +581,9 @@ if __name__=="__main__":
             flag_full = True
         else:
             flag_full = False
+            
+            
+            
         
         if parameters_temp[i]['dunbar_number']>parameters_temp[i]['num_environment']:
             continue
@@ -592,12 +605,18 @@ if __name__=="__main__":
             parameters_temp[i]['DiscreteChoice_lr'] = None
             parameters_temp[i]['DiscreteChoice_L1_coeff'] = None
             
+            
+            
         if parameters_temp[i]['flag_pruning']:
             if not flag_full:
                 continue
         if not parameters_temp[i]['flag_pruning']:
             parameters_temp[i]['type_pruning'] = None
-            parameters_temp[i]['freq_pruning'] = None
+            parameters_temp[i]['pruning_freq'] = None
+            
+        if not parameters_temp[i]['env_type']=='match_mod2_n':
+            parameters_temp[i]['env_n_region'] = None
+            
             
             
         if flag_layered:
@@ -607,6 +626,10 @@ if __name__=="__main__":
             if np.mod(parameters_temp[i]['num_manager'], 3) == 2:
                 parameters_temp[i]['width_seq'][0] = parameters_temp[i]['width_seq'][0]+1
                 parameters_temp[i]['width_seq'][1] = parameters_temp[i]['width_seq'][1]+1
+                
+        if not flag_layered:
+            pass
+            
                 
                 
         if not parameters_temp[i]['flag_minibatch']:
