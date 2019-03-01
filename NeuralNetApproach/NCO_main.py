@@ -693,7 +693,7 @@ if __name__=="__main__":
             
             org.func_Train()
         
-            draw_network(num_environment=org_parameters['num_environment'], num_manager=org_parameters['num_manager'], num_actor=org_parameters['num_actor'],num_agent=org_parameters['num_agent'], network=org.network, filename = dirname+filename_trial)
+            draw_network(num_environment=org_parameters['num_environment'], num_manager=org_parameters['num_manager'], num_actor=org_parameters['num_actor'],num_agent=org_parameters['num_agent'], network=org.network.data.cpu(), filename = dirname+filename_trial)
         
             
             
