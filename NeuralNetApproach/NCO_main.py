@@ -25,10 +25,13 @@ from matplotlib import pyplot as plt
 from sklearn.model_selection import ParameterGrid
 
 from NCO_functions import createFolder,Environment,gen_full_network,gen_constrained_network,draw_network
-
+'''
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
 dtype_float = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.float
+'''
+device = torch.device("cpu")
+dtype_float = torch.float
+
 
 if device != 'cpu':
     pass
