@@ -523,7 +523,7 @@ class NCO_main(nn.Module):
                 
                 
 if __name__=="__main__":
-    Description = 'Pruning_fixed'
+    Description = 'LargeEnv_LargeOrg'
 
     exec_date = datetime.datetime.now(pytz.timezone('US/Mountain')).strftime('%B%d_%H%M')
     
@@ -532,10 +532,10 @@ if __name__=="__main__":
     createFolder(dirname)
     
     parameters_for_grid = {#'num_agent':[10], 
-                           'num_manager':[24,36],#15, #9, 
+                           'num_manager':[48,60],#15, #9, #24,36 
                            'num_environment':[12,24],  #6
                            'num_actor':[1], #Not tested for >2 yet.
-                           'dunbar_number':[4],#2,
+                           'dunbar_number':[4,8],#2,
                             'lr':[.001], 
                             'L1_coeff':[.01],#0., 
                             'n_it':[10000],#10000
@@ -562,7 +562,7 @@ if __name__=="__main__":
                             
                             'flag_ResNet':[False],
                             'flag_minibatch':[False],
-                            'minibatch_size':[30],
+                            'minibatch_size':[None],
                             'type_initial_network': ['layered_random'], #'FullyConnected''layered_full',,'layered_full' #'ConstrainedRandom',
                             'flag_BatchNorm': [True], 
                             'env_type': ['match_mod2_n'],#match_mod2
