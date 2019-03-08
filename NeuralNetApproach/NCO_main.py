@@ -21,6 +21,8 @@ import pytz
 import pickle
 
 from matplotlib import pyplot as plt
+import matplotlib
+matplotlib.use('Agg')
 
 from sklearn.model_selection import ParameterGrid
 
@@ -512,14 +514,15 @@ class NCO_main(nn.Module):
                 #print(W_message_to_action_grad)
 
                 '''
-                '''
+
                 self.fig_loss = plt.figure()
                 plt.plot(np.arange(len(self.total_loss_list) ) ,self.total_loss_list)
                 plt.title('Loss'  )
                 plt.show()
                 #plt.draw()
-                plt.pause(.5)
+                #plt.pause(.5)
                 plt.close()
+                '''
 
 
                 if self.error_rate<1/self.minibatch_size:
@@ -550,12 +553,21 @@ class NCO_main(nn.Module):
                     plt.show()
                     plt.close()
                 '''
+        self.fig_loss = plt.figure()
+        plt.plot(np.arange(len(self.total_loss_list) ) ,self.total_loss_list)
+        plt.title('Loss'  )
+        #plt.show()
+        #plt.draw()
+        #plt.pause(.5)
+        plt.close()
+
 
 
 
 
 if __name__=="__main__":
-    Description = 'LargeEnv_LargeOrg'
+    Description = 'Slimming_layered'
+    plt.ioff()
 
     exec_date = datetime.datetime.now(pytz.timezone('US/Mountain')).strftime('%B%d_%H%M')
 
@@ -565,7 +577,7 @@ if __name__=="__main__":
 
     parameters_for_grid = {#'num_agent':[10],
                            'num_manager':[36,60],#15, #9, #24,36
-                           'num_environment':[12],  #6
+                           'num_environment':[12,24],  #6
                            'num_actor':[1], #Not tested for >2 yet.
                            'dunbar_number':[4,8],#2,
                             'lr':[.0001],
@@ -581,7 +593,7 @@ if __name__=="__main__":
 
                             'flag_pruning':[True],
                             'type_pruning':['Slimming'], #'Random','Smallest','Slimming'
-                            'pruning_freq':[300],
+                            'pruning_freq':[100],
 
                             'flag_slimming':[False],
                             'slimming_freq':[200],
@@ -601,7 +613,7 @@ if __name__=="__main__":
                             'flag_ResNet':[False],
                             'flag_minibatch':[False],
                             'minibatch_size':[None],
-                            'type_initial_network': ['layered_full','layered_random'], #'layered_full''FullyConnected''layered_full'''layered_random'layered_full',,'layered_full' #'ConstrainedRandom',
+                            'type_initial_network': ['layered_full','FullyConnected'], #'layered_full''FullyConnected''layered_full'''layered_random'layered_full',,'layered_full' #'ConstrainedRandom',
                             'initial_network_depth':[3,5,7],
                             'flag_BatchNorm': [True],
                             'env_type': ['match_mod2_n'],#match_mod2
@@ -701,7 +713,7 @@ if __name__=="__main__":
 
         dup = False
         for p in parameters_list:
-            if parameters_temp[i]==p:
+            if parameters_temp[i] is p:
                 dup=True
         if dup is False:
             parameters_list.append(parameters_temp[i])
