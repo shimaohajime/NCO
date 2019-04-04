@@ -595,7 +595,7 @@ if __name__=="__main__":
                             'type_pruning':['Slimming'], #'Random','Smallest','Slimming'
                             'pruning_freq':[100],
 
-                            'flag_slimming':[False],
+                            'flag_slimming':[False],# For agent slimming, not implemented yet.
                             'slimming_freq':[200],
                             'slimming_L1_coeff':[.0001],
                             'slimming_threshold':[.1],
@@ -783,7 +783,7 @@ if __name__=="__main__":
 
             #ConstrainedRandom
 
-
+            '''
             pickle.dump(org.W_env_to_message_list, open(dirname+filename_trial+"_W_env_to_message_list.pickle","wb"))
             pickle.dump(org.W_env_to_action_list, open(dirname+filename_trial+"_W_env_to_action_list.pickle","wb"))
             pickle.dump(org.W_message_to_message_list, open(dirname+filename_trial+"_W_message_to_message_list.pickle","wb"))
@@ -798,7 +798,7 @@ if __name__=="__main__":
             pickle.dump(org.network_list, open(dirname+filename_trial+"_network_list.pickle","wb"))
 
             pickle.dump(org.message_list, open(dirname+filename_trial+"_message_list.pickle","wb"))
-
+            '''
 
             org.fig_loss.savefig(dirname+filename_trial+"_loss_graph.png")
 
