@@ -576,13 +576,13 @@ if __name__=="__main__":
     createFolder(dirname)
 
     parameters_for_grid = {#'num_agent':[10],
-                           'num_manager':[36,60],#15, #9, #24,36
-                           'num_environment':[12,24],  #6
+                           'num_manager':[36,60,90],#15, #9, #24,36
+                           'num_environment':[36,48],  #6 12,24
                            'num_actor':[1], #Not tested for >2 yet.
-                           'dunbar_number':[4,8],#2,
+                           'dunbar_number':[4,6,8],#2,
                             'lr':[.0001],
                             'L1_coeff':[.01],#0.,
-                            'n_it':[10000],#10000
+                            'n_it':[30000],#10000
                             'message_unit':[nn.functional.relu],#[torch.sigmoid],
                             'action_unit':[torch.sigmoid],
 
@@ -613,8 +613,8 @@ if __name__=="__main__":
                             'flag_ResNet':[False],
                             'flag_minibatch':[False],
                             'minibatch_size':[None],
-                            'type_initial_network': ['layered_full','FullyConnected'], #'layered_full''FullyConnected''layered_full'''layered_random'layered_full',,'layered_full' #'ConstrainedRandom',
-                            'initial_network_depth':[3,5,7],
+                            'type_initial_network': ['FullyConnected'], #'layered_full''FullyConnected''layered_full'''layered_random'layered_full',,'layered_full' #'ConstrainedRandom',
+                            'initial_network_depth':[5],
                             'flag_BatchNorm': [True],
                             'env_type': ['match_mod2_n'],#match_mod2
                             'env_n_region':[2]
@@ -720,7 +720,7 @@ if __name__=="__main__":
 
 
 
-    n_rep = 50
+    n_rep = 20
     for param_i in range( len(parameters_list) ):
 
 
