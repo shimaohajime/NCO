@@ -441,13 +441,30 @@ class NCO_main(nn.Module):
             #Pruning network
             if self.flag_pruning:
                 if it%self.pruning_freq==0 and it>0:
+                    #Check the nodes that don't speak to anyone.
+                    fanout_all = torch.sum( torch.abs(self.network), dim=1 )
+                    no_fanout = torch.where(fanout_all==0,torch.Tensor([1]),torch.Tensor([0])) #1 if not speaking to other node.
+                    no_fanout[-1]=2 #the actor is OK not to speak
+                    one_fanout = torch.where(fanout_all==1,torch.Tensor([1]),torch.Tensor([0])) #1 if speaking to only one node.
+                    multi_fanout =     torch.where(fanout_all>1,torch.Tensor([1]),torch.Tensor([0]))            
+                    #Check the nodes that speak to only one node. Try not to cut that link
+                    
+                    
+                    
+                    
                     for i in range(self.num_agent):
-                        network_i = self.network[:,i]
+                        network_i = self.network[:,i] #the nodes that i is listening to.
                         fanin_i = torch.sum(torch.abs(network_i) )
                         if fanin_i>self.dunbar_number:
                             n_inactivate = 1
-                            #pos_active = np.where(network_i!=0)
-                            pos_active = (network_i!=0).nonzero().flatten()
+                            if torch.any( (network_i*no_fanout).type('torch.ByteTensor') ):
+                                #If speaking to a node not linked to other node, cut it first.
+                                pos_active = (network_i*no_fanout).nonzero().flatten()
+                            elif  torch.any( (network_i*one_fanout).type('torch.ByteTensor') ):
+                                #If speaking to a node that speaks to one node, don't cut it.
+                                pos_active = (network_i*multi_fanout).nonzero().flatten()                                
+                            else:
+                                pos_active = (network_i!=0).nonzero().flatten()
                             if self.type_pruning is 'Random':
                                 pos_inactivate = pos_active[pos_active<self.fanin_max_list[i]][torch.randperm( len(pos_active[pos_active<self.fanin_max_list[i]]) )[:n_inactivate] ]
                             elif self.type_pruning is 'Smallest':
@@ -582,7 +599,7 @@ if __name__=="__main__":
                            'dunbar_number':[4,6,8],#2,
                             'lr':[.0001],
                             'L1_coeff':[.01],#0.,
-                            'n_it':[30000],#10000
+                            'n_it':[30000],#10000  30000
                             'message_unit':[nn.functional.relu],#[torch.sigmoid],
                             'action_unit':[torch.sigmoid],
 
