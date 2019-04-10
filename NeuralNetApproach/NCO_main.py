@@ -595,10 +595,10 @@ if __name__=="__main__":
     createFolder(dirname)
 
     parameters_for_grid = {#'num_agent':[10],
-                           'num_manager':[36,60,90],#15, #9, #24,36
-                           'num_environment':[36,48],  #6 12,24
+                           'num_manager':[9,15],#15, #9, #24,36 #36,60,90
+                           'num_environment':[6,12],  #6 12,24 #36,48
                            'num_actor':[1], #Not tested for >2 yet.
-                           'dunbar_number':[4,6,8],#2,
+                           'dunbar_number':[2,4],##,6,8
                             'lr':[.0001],
                             'L1_coeff':[.01],#0.,
                             'n_it':[30000],#10000  30000
