@@ -465,6 +465,7 @@ class NCO_main(nn.Module):
                                 pos_active = (network_i*multi_fanout).nonzero().flatten()                                
                             else:
                                 pos_active = (network_i!=0).nonzero().flatten()
+                                
                             if self.type_pruning is 'Random':
                                 pos_inactivate = pos_active[pos_active<self.fanin_max_list[i]][torch.randperm( len(pos_active[pos_active<self.fanin_max_list[i]]) )[:n_inactivate] ]
                             elif self.type_pruning is 'Smallest':
@@ -485,7 +486,8 @@ class NCO_main(nn.Module):
                             #pos_inactivate = np.random.choice(pos_active[0][(pos_active[0]<self.fanin_max_list[i])],[n_inactivate],replace=False)
                             network_i[pos_inactivate]= 0.#torch.zeros(len(pos_inactivate))
                             self.network[:,i] = network_i
-                            print('pruning(%i,%i)'%(pos_inactivate.nonzero(), i))
+                            if pos_inactivate.shape[0]>0 and pos_inactivate.shape[0]<2:
+                                print('pruning(%i,%i)'%(pos_inactivate.nonzero(), i))
 
 
             #Pruning agent
