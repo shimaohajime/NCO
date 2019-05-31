@@ -55,7 +55,7 @@ dirname ='./result_'+exec_date +'_' + Description
 
 createFolder(dirname)
 
-n_rep = 1
+n_rep = 100
 
 param0 = {'num_environment' : 16,
           'agent_per_layer' : [8,4,2],
