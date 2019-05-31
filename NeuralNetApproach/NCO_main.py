@@ -51,7 +51,7 @@ def xavier_init(size):
     return torch.tensor(np.random.randn(*size).astype(np.float32) * xavier_stddev, requires_grad=True,device=device)
 
 
-class NCO_main(nn.Module):
+class NCO_main1(nn.Module):
     def __init__(self, num_agent = 10, num_manager = 9, num_environment = 6, num_actor = 1, dunbar_number = 4,
                  lr = .01, L1_coeff = 0., n_it = 200000,
                  message_unit = torch.sigmoid, action_unit = torch.sigmoid,
@@ -62,63 +62,66 @@ class NCO_main(nn.Module):
                  flag_AgentPruning = False, AgentPruning_freq = None,
                  flag_slimming = False, slimming_freq = None, slimming_L1_coeff = None,slimming_threshold=None,
                  flag_minibatch = False, minibatch_size = None,
-                 type_initial_network = 'ConstrainedRandom', flag_BatchNorm = True,initial_network_depth=None,
-                 batchsize = None, env_type = 'match_mod2',env_input_type='all_comb',env_n_region=None,width_seq=None
+                 type_initial_network = 'ConstrainedRandom', flag_BatchNorm = True,initial_network_depth=None,initial_network = None,
+                 batchsize = None, env_type = 'match_mod2',env_input_type='all_comb',env_n_region=None,width_seq=None, env_input = None, env_output=None
                  ):
-        super(NCO_main, self).__init__()
+        super(NCO_main1, self).__init__()
         #Basic parameters
-        self.num_agent = num_agent
-        self.num_manager = num_manager
-        self.num_environment = num_environment
-        self.num_actor = num_actor
-        self.dunbar_number = dunbar_number
-        self.message_unit = message_unit
-        self.action_unit = action_unit
+        self.num_agent = num_agent #total number of nodes
+        self.num_manager = num_manager #number of nodes that do not take action (output)
+        self.num_environment = num_environment # number of input nodes
+        self.num_actor = num_actor #number of output nodes, currently assumed to be 1.
+        self.dunbar_number = dunbar_number #max fan-in of each node
+        self.message_unit = message_unit #function that each manager node performs to compute its output, sigmoid, ReLU, etc
+        self.action_unit = action_unit #function that actor node performs to compute final output
 
         self.dim_input_max = num_environment+num_manager
 
         #Learning parameters
-        self.lr = lr#.1#1e-2#1e-3
-        self.L1_coeff = L1_coeff#0.0001#.5
-        self.n_it = n_it#1000000
+        self.lr = lr#.1#1e-2#1e-3  #Learning rate
+        self.L1_coeff = L1_coeff#0.0001#.5  #coefficient on L1 norm
+        self.n_it = n_it#1000000  #number of iteration of SDG
 
         #DeepR
-        self.flag_DeepR = flag_DeepR
-        self.DeepR_freq = DeepR_freq
-        self.DeepR_T = DeepR_T
-        self.DeepR_layered = DeepR_layered
+        self.flag_DeepR = flag_DeepR  # True to perform "DeepR"
+        self.DeepR_freq = DeepR_freq  #Every * iterations, perform DeepR 
+        self.DeepR_T = DeepR_T  # "temperture" of DeepR
+        self.DeepR_layered = DeepR_layered  
 
         #Pruning
-        self.flag_pruning = flag_pruning
-        self.type_pruning = type_pruning
-        self.pruning_freq = pruning_freq
+        self.flag_pruning = flag_pruning #True to perform pruning
+        self.type_pruning = type_pruning #Type of pruning
+        self.pruning_freq = pruning_freq #Every * iterations, perform pruning 
 
         #Slimming
-        self.flag_slimming=flag_slimming
-        self.slimming_freq = slimming_freq
-        self.slimming_L1_coeff =slimming_L1_coeff
-        self.slimming_threshold = slimming_threshold
+        #Not implemented yet
+        self.flag_slimming=flag_slimming #Not implemented yet
+        self.slimming_freq = slimming_freq #Not implemented yet
+        self.slimming_L1_coeff =slimming_L1_coeff #Not implemented yet
+        self.slimming_threshold = slimming_threshold #Not implemented yet
 
         #Discrete choice and Darts
-        self.flag_DiscreteChoice = flag_DiscreteChoice
+        self.flag_DiscreteChoice = flag_DiscreteChoice #True to perform DARTS-ish connection reduction.
         self.flag_DiscreteChoice_Darts = flag_DiscreteChoice_Darts
         self.DiscreteChoice_freq = DiscreteChoice_freq
         self.DiscreteChoice_lr = DiscreteChoice_lr
         self.DiscreteChoice_L1_coeff = DiscreteChoice_L1_coeff
 
         #ResNet
+        #Not implemented yet
         self.flag_ResNet = flag_ResNet
 
         #Agent Pruning
+        #Not implemented yet
         self.flag_AgentPruning = flag_AgentPruning
         self.AgentPruning_freq = AgentPruning_freq
 
 
         #Initial values
-        self.type_initial_network = type_initial_network#'FullyConnected'#'ConstrainedRandom'
+        self.type_initial_network = type_initial_network #'FullyConnected', 'ConstrainedRandom'
 
         #Batch normalization
-        self.flag_BatchNorm = flag_BatchNorm
+        self.flag_BatchNorm = flag_BatchNorm #True to perform batch normalization.
 
         #Type of environment generation
         self.env_type = env_type
@@ -152,15 +155,31 @@ class NCO_main(nn.Module):
             self.network = torch.tensor(np.abs(self.network_full_layered_np).astype(np.float32),device=device)
             self.num_layer = len(width_seq)
             self.width_seq = width_seq
+        elif type_initial_network is 'specified':
+            self.network = torch.tensor(initial_network.astype(np.float32), device=device)
 
 
-        env_class = Environment(batchsize=batchsize,num_environment=self.num_environment,num_agents=num_agent,num_manager=num_manager,num_actor=num_actor,env_type=env_type,env_n_region=env_n_region,input_type=env_input_type,flag_normalize=False,env_network=self.network_const_env)
-        env_class.create_env()
+        #Number of pruning per time
+        if flag_pruning:
+            self.n_need_to_prune = torch.sum(torch.abs(self.network) ) - self.dunbar_number*self.num_agent
+            self.prune_per_time= int(self.n_need_to_prune/int((self.n_it-3000)/self.pruning_freq) )
 
-        self.env_input_np = env_class.environment.astype(np.float32)
-        self.env_output_np = env_class.env_pattern.astype(np.float32)
-        self.env_input = torch.tensor(self.env_input_np,device=device)
-        self.env_output = torch.tensor(self.env_output_np,device=device)
+
+        #Create "environment", i.e. input and output samples
+        if env_type is not 'specified':
+            env_class = Environment(batchsize=batchsize,num_environment=self.num_environment,num_agents=num_agent,num_manager=num_manager,num_actor=num_actor,env_type=env_type,env_n_region=env_n_region,input_type=env_input_type,flag_normalize=False,env_network=self.network_const_env)
+            env_class.create_env()
+    
+            self.env_input_np = env_class.environment.astype(np.float32)
+            self.env_output_np = env_class.env_pattern.astype(np.float32)
+            self.env_input = torch.tensor(self.env_input_np,device=device)
+            self.env_output = torch.tensor(self.env_output_np,device=device)
+        elif env_type is 'specified':
+            self.env_input_np = env_input.astype(np.float32)
+            self.env_output_np = env_output.astype(np.float32)
+            self.env_input = torch.tensor(self.env_input_np,device=device)
+            self.env_output = torch.tensor(self.env_output_np,device=device)
+            
 
         #Batchsize
         self.batchsize = self.env_input.shape[0]#64
@@ -201,7 +220,7 @@ class NCO_main(nn.Module):
 
             self.BatchNorm_eps = 1e-5
 
-        #Parameters for discrete chocie
+        #Parameters for discrete chocie method (inactive)
         if flag_DiscreteChoice or flag_DiscreteChoice_Darts:
             self.DiscreteChoice_alpha = torch.tensor(np.zeros_like(self.network).astype(np.float32), requires_grad=True,device=device)#Variable(torch.randn_like(network), requires_grad=True)
 
@@ -214,7 +233,7 @@ class NCO_main(nn.Module):
             self.params_to_optimize.extend([self.BatchNorm_gamma_message_to_message,self.BatchNorm_gamma_message_to_action,self.BatchNorm_gamma_env_to_message,self.BatchNorm_gamma_env_to_action,self.BatchNorm_beta_message_to_message,self.BatchNorm_beta_message_to_action,self.BatchNorm_beta_env_to_message,self.BatchNorm_beta_env_to_action])
 
 
-        #
+        # Define loss function
         #solver = optim.Adam(params_to_optimize, lr=lr)
         #loss = nn.BCELoss(reduction='sum')
         self.loss = nn.BCEWithLogitsLoss(reduction='sum')
@@ -240,13 +259,20 @@ class NCO_main(nn.Module):
 
 
     def func_BatchNorm(self,X, gamma, beta, eps):
+        '''
+        function to add batch-normalization
+        '''
         X_BachNorm =  gamma * ( (X-torch.mean(X,dim=0) )/ (torch.std(X,dim=0)+eps ) ) +beta
 
         return X_BachNorm
 
 
     def func_Train(self):
+        '''
+        function to run training
+        '''
         for it in range(self.n_it):
+            self.current_it = it
             '''
             if it>5000:
                 lr = 1.
@@ -321,14 +347,14 @@ class NCO_main(nn.Module):
                 self.L1_alpha = torch.sum(torch.abs(self.DiscreteChoice_alpha) )
                 self.total_loss = self.total_loss+self.L1_alpha*self.DiscreteChoice_L1_coeff
 
+            #"Slimming" method
             if self.type_pruning=='Slimming':
                 self.L1_on_slimming = torch.sum(torch.abs(self.BatchNorm_gamma_message_to_message))
                 self.total_loss = self.total_loss+self.slimming_L1_coeff*self.L1_on_slimming
 
-
-
-
+            #Compute gradient
             self.total_loss.backward()
+            #Error statistic
             self.error_rate = torch.mean(torch.abs((self.action.data.cpu()>.5).float() - env_output_it.data.cpu() ) )
 
 
@@ -349,6 +375,7 @@ class NCO_main(nn.Module):
                     #For printing
                     self.W_message_to_action_grad = self.W_message_to_action.grad
 
+                #DeepR algorithm (implemented, inactive)
                 if self.flag_DeepR:
                     self.W_env_to_message = self.W_env_to_message +torch.randn_like(self.W_env_to_message) * np.sqrt(2.*self.lr*self.DeepR_T)
                     self.W_env_to_action = self.W_env_to_action +torch.randn_like(self.W_env_to_action) * np.sqrt(2.*self.lr*self.DeepR_T)
@@ -359,7 +386,8 @@ class NCO_main(nn.Module):
                     self.W_message_to_message = torch.where(self.W_message_to_message>0,self.W_message_to_message,torch.zeros_like(self.W_message_to_message))
                     self.W_env_to_action = torch.where(self.W_env_to_action>0,self.W_env_to_action,torch.zeros_like(self.W_env_to_action))
                     self.W_message_to_action =torch.where(self.W_message_to_action>0,self.W_message_to_action,torch.zeros_like(self.W_message_to_action))
-
+                
+                #Updating batch normalization parameters, active.
                 if self.flag_BatchNorm:
                     self.BatchNorm_gamma_message_to_message = self.BatchNorm_gamma_message_to_message - self.lr * self.BatchNorm_gamma_message_to_message.grad
                     self.BatchNorm_gamma_message_to_action = self.BatchNorm_gamma_message_to_action - self.lr * self.BatchNorm_gamma_message_to_action.grad
@@ -381,6 +409,7 @@ class NCO_main(nn.Module):
                     self.BatchNorm_beta_env_to_message.requires_grad = True
                     self.BatchNorm_beta_env_to_action.requires_grad = True
 
+                #
                 self.W_env_to_message.requires_grad = True
                 self.W_env_to_action.requires_grad = True
                 self.W_message_to_message.requires_grad = True
@@ -441,20 +470,26 @@ class NCO_main(nn.Module):
             #Pruning network
             if self.flag_pruning:
                 if it%self.pruning_freq==0 and it>0:
-                    #Check the nodes that don't speak to anyone.
-                    fanout_all = torch.sum( torch.abs(self.network), dim=1 )
-                    no_fanout = torch.where(fanout_all==0,torch.Tensor([1]),torch.Tensor([0])) #1 if not speaking to other node.
-                    no_fanout[-1]=2 #the actor is OK not to speak
-                    one_fanout = torch.where(fanout_all==1,torch.Tensor([1]),torch.Tensor([0])) #1 if speaking to only one node.
-                    multi_fanout =     torch.where(fanout_all>1,torch.Tensor([1]),torch.Tensor([0]))            
-                    #Check the nodes that speak to only one node. Try not to cut that link
-                    
-                    
-                    
-                    
+
+                    total_pruned = 0
+                    self.fanin_list = []
                     for i in range(self.num_agent):
-                        network_i = self.network[:,i] #the nodes that i is listening to.
+
+                        #Check the nodes that don't speak to anyone.
+                        fanout_all = torch.sum( torch.abs(self.network), dim=1 )
+                        fanout_all[-1]=2. #the actor is OK not to speak
+                        no_fanout = torch.where(fanout_all==0,  torch.tensor([1.],device=device),torch.tensor([0.],  device=device)) #1 if not speaking to other node.
+                        one_fanout = torch.where(fanout_all==1,torch.tensor([1.],device=device),torch.tensor([0.],device=device)) #1 if speaking to only one node.
+                        multi_fanout =     torch.where(fanout_all>1,torch.tensor([1.],device=device),torch.tensor([0.],device=device))
+                        #Check the nodes that speak to only one node. Try not to cut that link
+
+                        self.no_fanout = no_fanout
+                        self.one_fanout = one_fanout
+                        self.multi_fanout = multi_fanout
+
+                        network_i = torch.abs(self.network[:,i]) #the nodes that i is listening to.
                         fanin_i = torch.sum(torch.abs(network_i) )
+                        self.network_i=network_i
                         if fanin_i>self.dunbar_number:
                             n_inactivate = 1
                             if torch.any( (network_i*no_fanout).type('torch.ByteTensor') ):
@@ -462,10 +497,10 @@ class NCO_main(nn.Module):
                                 pos_active = (network_i*no_fanout).nonzero().flatten()
                             elif  torch.any( (network_i*one_fanout).type('torch.ByteTensor') ):
                                 #If speaking to a node that speaks to one node, don't cut it.
-                                pos_active = (network_i*multi_fanout).nonzero().flatten()                                
+                                pos_active = (network_i*multi_fanout).nonzero().flatten()
                             else:
-                                pos_active = (network_i!=0).nonzero().flatten()
-                                
+                                pos_active = (network_i).nonzero().flatten()
+
                             if self.type_pruning is 'Random':
                                 pos_inactivate = pos_active[pos_active<self.fanin_max_list[i]][torch.randperm( len(pos_active[pos_active<self.fanin_max_list[i]]) )[:n_inactivate] ]
                             elif self.type_pruning is 'Smallest':
@@ -486,8 +521,13 @@ class NCO_main(nn.Module):
                             #pos_inactivate = np.random.choice(pos_active[0][(pos_active[0]<self.fanin_max_list[i])],[n_inactivate],replace=False)
                             network_i[pos_inactivate]= 0.#torch.zeros(len(pos_inactivate))
                             self.network[:,i] = network_i
-                            if pos_inactivate.shape[0]>0 and pos_inactivate.shape[0]<2:
-                                print('pruning(%i,%i)'%(pos_inactivate.nonzero(), i))
+                            print('pruning(%i,%i)'%(pos_inactivate.nonzero(), i))
+                            self.pos_inactivate=pos_inactivate
+
+                            total_pruned = total_pruned+1
+                        if total_pruned>=self.prune_per_time:
+                            print('pruned %i links'%self.prune_per_time)
+                            break
 
 
             #Pruning agent
@@ -555,6 +595,10 @@ class NCO_main(nn.Module):
                     print('Loss NaN')
                     break
 
+                if it>10000 and np.all( np.array(self.error_rate_list[-10:])==.5  ) :
+                    print('Error rate stuck at .5')
+                    break
+
 
 
             if it%1000==0:
@@ -585,7 +629,7 @@ class NCO_main(nn.Module):
 
 
 if __name__=="__main__":
-    Description = 'Slimming_layered'
+    Description = 'A_little_careful_pruning'
     plt.ioff()
 
     exec_date = datetime.datetime.now(pytz.timezone('US/Mountain')).strftime('%B%d_%H%M')
@@ -595,12 +639,12 @@ if __name__=="__main__":
     createFolder(dirname)
 
     parameters_for_grid = {#'num_agent':[10],
-                           'num_manager':[9,15],#15, #9, #24,36 #36,60,90
-                           'num_environment':[6,12],  #6 12,24 #36,48
+                           'num_manager':[24,36],#15, #9, #24,36 #36,60,90
+                           'num_environment':[6,12,36],  #6 12,24 #36,48
                            'num_actor':[1], #Not tested for >2 yet.
-                           'dunbar_number':[2,4],##,6,8
+                           'dunbar_number':[4],##,6,8
                             'lr':[.0001],
-                            'L1_coeff':[.01],#0.,
+                            'L1_coeff':[.0],#0.,
                             'n_it':[30000],#10000  30000
                             'message_unit':[nn.functional.relu],#[torch.sigmoid],
                             'action_unit':[torch.sigmoid],
@@ -612,7 +656,7 @@ if __name__=="__main__":
 
                             'flag_pruning':[True],
                             'type_pruning':['Slimming'], #'Random','Smallest','Slimming'
-                            'pruning_freq':[100],
+                            'pruning_freq':[300],
 
                             'flag_slimming':[False],# For agent slimming, not implemented yet.
                             'slimming_freq':[200],
