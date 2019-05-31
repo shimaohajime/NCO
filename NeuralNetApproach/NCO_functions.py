@@ -23,10 +23,11 @@ def createFolder(directory):
         print ('Error: Creating directory. ' +  directory)
 
 
+
 #Create a tree-structured partitioned groups 
-def gen_partition_tree(param_dict):
-    for key,val in param_dict.items():
-        exec(key + '=val')
+def gen_partition_tree(num_environment, agent_per_layer, num_partition_environment, num_partition_agent,
+                       dunbar_number_oracle, dunbar_number_org, rho_oracle, rho_org, 
+                       num_layer, num_manager, num_agent):
                 
     G = nx.DiGraph()
     for i in range(num_partition_environment):

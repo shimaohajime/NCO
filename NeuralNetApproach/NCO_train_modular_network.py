@@ -55,7 +55,7 @@ dirname ='./result_'+exec_date +'_' + Description
 
 createFolder(dirname)
 
-n_rep = 100
+n_rep = 1
 
 param0 = {'num_environment' : 16,
           'agent_per_layer' : [8,4,2],
@@ -113,6 +113,7 @@ for param_i in range(len(params)):
         exec(key + '=val')
 
     environment_partition_id, agent_layer_id, agent_partition_id = gen_layer_and_partition(num_environment,num_agent,num_manager,num_layer,agent_per_layer,num_partition_environment,num_partition_agent)
+    partitions_network = gen_partition_tree(**param)
         
     for rep in range(n_rep):
         nodes_network_for_env = gen_layered_modular_network(num_environment,num_agent,num_layer,dunbar_number_oracle, #Number of input nodes, number of layers other than input layer
